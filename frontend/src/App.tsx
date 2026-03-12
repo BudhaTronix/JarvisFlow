@@ -2,6 +2,8 @@ import { useState } from "react";
 
 import { BrainstormCanvas } from "./components/BrainstormCanvas";
 import { EntryScreen } from "./components/EntryScreen";
+import { useGestureController } from "./hooks/useGestureController";
+import { useKeyboardNavigation } from "./hooks/useKeyboardNavigation";
 import { fetchBrainstorm } from "./lib/api";
 import type { BrainstormResponse, Direction, SelectedNode, TopicNodeData } from "./lib/types";
 
@@ -12,6 +14,63 @@ export default function App() {
   const [openTopic, setOpenTopic] = useState<TopicNodeData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectCenter = () => {
+    setSelectedNode("center");
+    setOpenTopic(null);
+  };
+
+  const openCenter = () => {
+    if (!graph) {
+      return;
+    }
+
+    setSelectedNode("center");
+    setOpenTopic(graph.root);
+  };
+
+  const highlightDirection = (direction: Direction) => {
+    setSelectedNode(direction);
+    setOpenTopic(null);
+  };
+
+  const openDirection = (direction: Direction) => {
+    if (!graph) {
+      return;
+    }
+
+    setSelectedNode(direction);
+    setOpenTopic(graph.directions[direction]);
+  };
+
+  const openSelected = () => {
+    if (!graph) {
+      return;
+    }
+
+    if (selectedNode === "center") {
+      openCenter();
+      return;
+    }
+
+    openDirection(selectedNode);
+  };
+
+  const gestureController = useGestureController({
+    enabled: Boolean(graph),
+    onJoinStart: selectCenter,
+    onDirectionHighlight: highlightDirection,
+    onDirectionOpen: openDirection,
+  });
+
+  useKeyboardNavigation({
+    enabled: Boolean(graph),
+    selectedNode,
+    onSelectCenter: selectCenter,
+    onHighlightDirection: highlightDirection,
+    onOpenSelected: openSelected,
+    onClosePanel: () => setOpenTopic(null),
+  });
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -40,28 +99,6 @@ export default function App() {
     setError(null);
   };
 
-  const handleFocusCenter = () => {
-    if (!graph) {
-      return;
-    }
-
-    setSelectedNode("center");
-    setOpenTopic(graph.root);
-  };
-
-  const handleOpenDirection = (direction: Direction) => {
-    if (!graph) {
-      return;
-    }
-
-    setSelectedNode(direction);
-    setOpenTopic(graph.directions[direction]);
-  };
-
-  const handleClosePanel = () => {
-    setOpenTopic(null);
-  };
-
   if (!graph) {
     return (
       <EntryScreen
@@ -79,10 +116,18 @@ export default function App() {
       graph={graph}
       selectedNode={selectedNode}
       openTopic={openTopic}
+      cameraStatus={gestureController.status}
+      cameraDetail={gestureController.detail}
+      gesturePhase={gestureController.gesturePhase}
+      activeDirection={gestureController.activeDirection}
+      videoRef={gestureController.videoRef}
       onBack={handleBack}
-      onFocusCenter={handleFocusCenter}
-      onOpenDirection={handleOpenDirection}
-      onClosePanel={handleClosePanel}
+      onSelectCenter={selectCenter}
+      onOpenCenter={openCenter}
+      onHighlightDirection={highlightDirection}
+      onOpenDirection={openDirection}
+      onOpenSelected={openSelected}
+      onClosePanel={() => setOpenTopic(null)}
     />
   );
 }

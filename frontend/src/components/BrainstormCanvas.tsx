@@ -1,15 +1,27 @@
+import type { RefObject } from "react";
+
+import type { GesturePhase } from "../lib/gesture";
+import type { BrainstormResponse, Direction, SelectedNode, TopicNodeData } from "../lib/types";
 import { CameraPreview } from "./CameraPreview";
 import { ContentPanel } from "./ContentPanel";
+import { DirectionPad } from "./DirectionPad";
 import { TopicNode } from "./TopicNode";
-import type { BrainstormResponse, Direction, SelectedNode, TopicNodeData } from "../lib/types";
 
 interface BrainstormCanvasProps {
   graph: BrainstormResponse;
   selectedNode: SelectedNode;
   openTopic: TopicNodeData | null;
+  cameraStatus: string;
+  cameraDetail: string;
+  gesturePhase: GesturePhase;
+  activeDirection: Direction | null;
+  videoRef: RefObject<HTMLVideoElement>;
   onBack: () => void;
-  onFocusCenter: () => void;
+  onSelectCenter: () => void;
+  onOpenCenter: () => void;
+  onHighlightDirection: (direction: Direction) => void;
   onOpenDirection: (direction: Direction) => void;
+  onOpenSelected: () => void;
   onClosePanel: () => void;
 }
 
@@ -17,9 +29,17 @@ export function BrainstormCanvas({
   graph,
   selectedNode,
   openTopic,
+  cameraStatus,
+  cameraDetail,
+  gesturePhase,
+  activeDirection,
+  videoRef,
   onBack,
-  onFocusCenter,
+  onSelectCenter,
+  onOpenCenter,
+  onHighlightDirection,
   onOpenDirection,
+  onOpenSelected,
   onClosePanel,
 }: BrainstormCanvasProps) {
   return (
@@ -29,7 +49,7 @@ export function BrainstormCanvas({
           <p className="eyebrow">Mind-map explorer</p>
           <h1>{graph.root.label}</h1>
           <p className="canvas-subtitle">
-            Drag outward from the center with a three-finger pinch to explore each branch.
+            Join thumb, index, and middle finger near the camera guide, then drag outward to explore each branch.
           </p>
         </div>
         <div className="header-actions">
@@ -42,10 +62,21 @@ export function BrainstormCanvas({
 
       <section className="canvas-layout">
         <section className="mindmap-card">
-          <CameraPreview
-            status="Hand tracking standby"
-            detail="Mouse support is active now. MediaPipe gesture capture comes online in the next milestone."
-          />
+          <div className="interaction-strip">
+            <CameraPreview
+              status={cameraStatus}
+              detail={cameraDetail}
+              gesturePhase={gesturePhase}
+              activeDirection={activeDirection}
+              videoRef={videoRef}
+            />
+            <DirectionPad
+              selectedNode={selectedNode}
+              onSelectCenter={onSelectCenter}
+              onHighlightDirection={onHighlightDirection}
+              onOpenSelected={onOpenSelected}
+            />
+          </div>
 
           <div className="mindmap-stage">
             <svg className="mindmap-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -61,7 +92,7 @@ export function BrainstormCanvas({
               placement="center"
               isRoot
               selected={selectedNode === "center"}
-              onClick={onFocusCenter}
+              onClick={onOpenCenter}
             />
             <TopicNode
               label={graph.directions.up.label}
