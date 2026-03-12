@@ -29,9 +29,18 @@ interface GestureControllerState {
 
 const READY_STATUS = "Gesture camera live";
 const READY_DETAIL = "Join thumb, index, and middle finger near the center guide to begin.";
-const MODEL_ASSET_PATH =
+const DEFAULT_MODEL_ASSET_PATH =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
-const WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm";
+const MODEL_ASSET_PATH = import.meta.env.VITE_HAND_LANDMARKER_MODEL_URL?.trim() || DEFAULT_MODEL_ASSET_PATH;
+const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`;
+
+function getTrackingErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  return "MediaPipe hand tracking could not be initialized.";
+}
 
 export function useGestureController({
   enabled,
@@ -101,9 +110,13 @@ export function useGestureController({
     };
 
     const stopStream = () => {
+      const video = videoRef.current;
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
         stream = null;
+      }
+      if (video) {
+        video.srcObject = null;
       }
     };
 
@@ -329,13 +342,19 @@ export function useGestureController({
 
         animationFrame = window.requestAnimationFrame(processFrame);
       } catch (error) {
-        stopStream();
+        const video = videoRef.current;
+        const previewIsLive = Boolean(stream) && video?.srcObject === stream;
+        const errorMessage = getTrackingErrorMessage(error);
+
+        if (!previewIsLive) {
+          stopStream();
+        }
+
         setViewState({
-          status: "Gesture fallback active",
-          detail:
-            error instanceof Error
-              ? `${error.message} Use mouse, buttons, or keyboard while the camera is unavailable.`
-              : "Camera access failed. Use mouse, buttons, or keyboard instead.",
+          status: previewIsLive ? "Camera preview live" : "Gesture fallback active",
+          detail: previewIsLive
+            ? `${errorMessage} Camera preview is still running, but gesture tracking is unavailable. Use mouse, buttons, or keyboard instead.`
+            : `${errorMessage} Use mouse, buttons, or keyboard instead.`,
           gesturePhase: "idle",
           activeDirection: null,
         });

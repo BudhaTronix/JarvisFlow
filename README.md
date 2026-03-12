@@ -62,6 +62,7 @@ Response shape:
    `npm install`
 3. Create a local env file if needed and set:
    - `VITE_API_BASE_URL=http://localhost:8000`
+   - `VITE_HAND_LANDMARKER_MODEL_URL=` (optional override if you want to host the `.task` model yourself)
 4. Start the dev server:
    `npm run dev`
 5. Open the URL printed by Vite, usually `http://localhost:5173`.
@@ -89,7 +90,9 @@ Notes:
 - Thresholds are normalized using hand size so the interaction is less sensitive to distance from the camera.
 - Smoothing and hysteresis are used to reduce flicker.
 - The preview includes a center guide because the webcam coordinate space is not the same as the mind-map canvas.
-- The MediaPipe WASM bundle and hand landmark model are fetched in the browser at runtime.
+- The MediaPipe WASM runtime is served locally from `frontend/public/mediapipe/wasm` so it matches the installed package version.
+- By default the hand landmark model is loaded from Google's hosted MediaPipe model URL. If that URL is blocked on your network, set `VITE_HAND_LANDMARKER_MODEL_URL` to your own hosted copy.
+- If model loading fails, the camera preview now stays live and the app falls back to mouse, button, and keyboard controls.
 
 ## Mouse, button, and keyboard fallback
 
