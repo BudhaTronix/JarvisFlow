@@ -1,8 +1,22 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="JARVIS Flow API")
+from app.api import router
+from app.config import get_settings
 
 
-@app.get("/health")
-def healthcheck() -> dict[str, str]:
-    return {"status": "ok"}
+def create_app() -> FastAPI:
+    settings = get_settings()
+    app = FastAPI(title="JARVIS Flow API")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.frontend_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.include_router(router, prefix="/api")
+    return app
+
+
+app = create_app()
