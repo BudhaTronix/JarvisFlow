@@ -1,6 +1,7 @@
-import type { ScreenPoint } from "../lib/types";
+import type { ScreenPoint, SelectedNode } from "../lib/types";
 
 interface TopicNodeProps {
+  topicKey: SelectedNode;
   label: string;
   content: string;
   position: ScreenPoint;
@@ -9,12 +10,22 @@ interface TopicNodeProps {
   onClick: () => void;
 }
 
-export function TopicNode({ label, content, position, selected, isRoot = false, onClick }: TopicNodeProps) {
+export function TopicNode({
+  topicKey,
+  label,
+  content,
+  position,
+  selected,
+  isRoot = false,
+  onClick,
+}: TopicNodeProps) {
   return (
     <button
       type="button"
+      data-topic={topicKey}
       className={[
         "topic-node",
+        `topic-node--${topicKey}`,
         selected ? "topic-node--selected" : "",
         isRoot ? "topic-node--root" : "",
       ]

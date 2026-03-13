@@ -16,6 +16,19 @@ interface BrainstormCanvasProps {
   onClosePanel: () => void;
 }
 
+const floatingTopics: SelectedNode[] = ["left", "up", "center", "down", "right"];
+
+function buildTrailPath(from: { x: number; y: number }, to: { x: number; y: number }): string {
+  const startX = from.x * 100;
+  const startY = from.y * 100;
+  const endX = to.x * 100;
+  const endY = to.y * 100;
+  const curveX = (endX - startX) * 0.28;
+  const curveY = (endY - startY) * 0.18;
+
+  return `M ${startX} ${startY} C ${startX + curveX} ${startY + curveY}, ${endX - curveX} ${endY - curveY}, ${endX} ${endY}`;
+}
+
 export function BrainstormCanvas({
   graph,
   selectedNode,
@@ -50,7 +63,33 @@ export function BrainstormCanvas({
           <video ref={videoRef} className="gesture-video-hidden" autoPlay muted playsInline aria-hidden="true" />
 
           <div className="mindmap-stage">
+            <svg className="mindmap-trails" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              {(["left", "up", "down", "right"] as const).map((topic) => (
+                <path
+                  key={topic}
+                  className={`mindmap-trail mindmap-trail--${topic}${selectedNode === topic ? " mindmap-trail--selected" : ""}`}
+                  d={buildTrailPath(topicPositions.center, topicPositions[topic])}
+                />
+              ))}
+            </svg>
+
+            {floatingTopics.map((topic) => (
+              <div
+                key={`${topic}-anchor`}
+                className={`topic-anchor topic-anchor--${topic}${selectedNode === topic ? " topic-anchor--selected" : ""}`}
+                style={{
+                  left: `${topicPositions[topic].x * 100}%`,
+                  top: `${topicPositions[topic].y * 100}%`,
+                }}
+                aria-hidden="true"
+              >
+                <span className="topic-anchor__core" />
+                <span className="topic-anchor__ring" />
+              </div>
+            ))}
+
             <TopicNode
+              topicKey="center"
               label={graph.root.label}
               content={graph.root.content}
               position={topicPositions.center}
@@ -59,6 +98,7 @@ export function BrainstormCanvas({
               onClick={onOpenCenter}
             />
             <TopicNode
+              topicKey="up"
               label={graph.directions.up.label}
               content={graph.directions.up.content}
               position={topicPositions.up}
@@ -66,6 +106,7 @@ export function BrainstormCanvas({
               onClick={() => onOpenDirection("up")}
             />
             <TopicNode
+              topicKey="right"
               label={graph.directions.right.label}
               content={graph.directions.right.content}
               position={topicPositions.right}
@@ -73,6 +114,7 @@ export function BrainstormCanvas({
               onClick={() => onOpenDirection("right")}
             />
             <TopicNode
+              topicKey="down"
               label={graph.directions.down.label}
               content={graph.directions.down.content}
               position={topicPositions.down}
@@ -80,6 +122,7 @@ export function BrainstormCanvas({
               onClick={() => onOpenDirection("down")}
             />
             <TopicNode
+              topicKey="left"
               label={graph.directions.left.label}
               content={graph.directions.left.content}
               position={topicPositions.left}
