@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "mode": "decentralized",
+  "nodes": [
+    {
+      "id": "node-lab-core",
+      "title": "Lab Core",
+      "notes": "Central inquiry frame coordinating protocols, synthesis, and review.",
+      "x": 620,
+      "y": 252
+    },
+    {
+      "id": "node-memory",
+      "title": "Memory Trace",
+      "notes": "Observed recall fragments, annotations, and subjective persistence.",
+      "x": 462,
+      "y": 388
+    },
+    {
+      "id": "node-signals",
+      "title": "Signal Lattice",
+      "notes": "Temporal patterns, sensor spikes, and recurring waveform behavior.",
+      "x": 744,
+      "y": 384
+    },
+    {
+      "id": "node-embodiment",
+      "title": "Embodiment",
+      "notes": "Gesture, posture, and the physical framing of thought processes.",
+      "x": 882,
+      "y": 278
+    },
+    {
+      "id": "node-language",
+      "title": "Language Model",
+      "notes": "Narrative structures, symbolic compression, and semantic drift.",
+      "x": 354,
+      "y": 268
+    },
+    {
+      "id": "node-archive",
+      "title": "Archive",
+      "notes": "Stored references, transcript snapshots, and recovery mechanisms.",
+      "x": 548,
+      "y": 502
+    },
+    {
+      "id": "node-ethics",
+      "title": "Ethics Screen",
+      "notes": "Constraint evaluation, intervention thresholds, and review gates.",
+      "x": 796,
+      "y": 514
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "source": "node-lab-core",
+      "target": "node-memory",
+      "weight": 3
+    },
+    {
+      "id": "edge-2",
+      "source": "node-lab-core",
+      "target": "node-signals",
+      "weight": 3
+    },
+    {
+      "id": "edge-3",
+      "source": "node-lab-core",
+      "target": "node-embodiment",
+      "weight": 2
+    },
+    {
+      "id": "edge-4",
+      "source": "node-lab-core",
+      "target": "node-language",
+      "weight": 2
+    },
+    {
+      "id": "edge-5",
+      "source": "node-memory",
+      "target": "node-archive",
+      "weight": 2
+    },
+    {
+      "id": "edge-6",
+      "source": "node-signals",
+      "target": "node-ethics",
+      "weight": 2
+    },
+    {
+      "id": "edge-7",
+      "source": "node-language",
+      "target": "node-archive",
+      "weight": 1
+    },
+    {
+      "id": "edge-8",
+      "source": "node-embodiment",
+      "target": "node-ethics",
+      "weight": 1
+    }
+  ],
+  "meta": {
+    "createdAt": "2026-03-13T00:00:00.000Z",
+    "source": "Thought Topology sample"
+  }
+}

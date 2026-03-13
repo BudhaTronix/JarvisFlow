@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thought Topology</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell" id="appShell">
+      <aside class="control-panel">
+        <header class="panel-header">
+          <p class="eyebrow">Dark Research Interface</p>
+          <h1>Thought Topology</h1>
+          <p class="lede">
+            Browser-based thought mapping with webcam hand control, resilient mouse
+            fallback, and lightweight local text graph generation.
+          </p>
+        </header>
+
+        <section class="panel-section">
+          <div class="stat-row">
+            <span class="chip" id="modeBadge">Centralized</span>
+            <span class="chip" id="inputBadge">Mouse Ready</span>
+            <span class="chip" id="trackingBadge">Camera Idle</span>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-card">
+              <span class="metric-label">Nodes</span>
+              <strong id="nodeCount">0</strong>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Edges</span>
+              <strong id="edgeCount">0</strong>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Gesture</span>
+              <strong id="gestureReadout">Idle</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <div class="label-row">
+            <label for="topologyModeSelect">Topology Mode</label>
+            <span class="microcopy">Switch layout bias live</span>
+          </div>
+          <select id="topologyModeSelect">
+            <option value="centralized">Centralized</option>
+            <option value="decentralized">Decentralized</option>
+            <option value="distributed">Distributed</option>
+          </select>
+        </section>
+
+        <section class="panel-section">
+          <div class="label-row">
+            <label for="textInput">Paste Notes</label>
+            <span class="microcopy">Local heuristic extraction</span>
+          </div>
+          <textarea
+            id="textInput"
+            spellcheck="false"
+            placeholder="Paste research notes, ideas, references, or fragmented thinking here. Terms become nodes. Shared sentence context becomes links."
+          ></textarea>
+          <button class="primary-button" id="generateButton">Generate Topology</button>
+        </section>
+
+        <section class="panel-section">
+          <div class="label-row">
+            <span class="panel-heading">Controls</span>
+            <span class="microcopy">Local static workflow</span>
+          </div>
+          <div class="button-grid">
+            <button id="startCameraButton">Start Camera</button>
+            <button id="loadSampleButton">Load Sample</button>
+            <button id="importButton">Import JSON</button>
+            <button id="exportButton">Export JSON</button>
+            <button id="pngButton">Save PNG</button>
+            <button id="fullscreenButton">Fullscreen</button>
+            <button class="danger-button" id="clearButton">Clear Canvas</button>
+          </div>
+        </section>
+
+        <section class="panel-section inspector">
+          <div class="label-row">
+            <span class="panel-heading">Selected Node Inspector</span>
+            <span class="microcopy" id="inspectorStatus">No node selected</span>
+          </div>
+          <label for="nodeTitleInput">Title</label>
+          <input id="nodeTitleInput" type="text" placeholder="Select or create a node" disabled />
+          <label for="nodeNotesInput">Notes</label>
+          <textarea
+            id="nodeNotesInput"
+            spellcheck="false"
+            placeholder="Add supporting context, references, or annotations"
+            disabled
+          ></textarea>
+        </section>
+      </aside>
+
+      <main class="stage-shell" id="stageShell">
+        <canvas id="topologyCanvas" aria-label="Thought Topology canvas"></canvas>
+        <video id="webcam" playsinline autoplay muted></video>
+        <input id="jsonInput" type="file" accept=".json,application/json" hidden />
+
+        <div class="hud-strip top-strip">
+          <div class="hud-panel">
+            <span class="hud-label">Topology Mode</span>
+            <strong id="hudMode">Centralized</strong>
+          </div>
+          <div class="hud-panel">
+            <span class="hud-label">Input Layer</span>
+            <strong id="hudInput">Mouse fallback active</strong>
+          </div>
+          <div class="hud-panel">
+            <span class="hud-label">Tracking</span>
+            <strong id="hudTracking">Camera idle</strong>
+          </div>
+        </div>
+
+        <div class="status-banner" id="statusBanner">
+          Mouse fallback is active. Start the camera to enable hand tracking.
+        </div>
+
+        <div class="help-card">
+          <div class="help-header">
+            <span class="help-kicker">Control Help</span>
+            <strong>Mouse + Hand Mapping</strong>
+          </div>
+          <div class="help-columns">
+            <div>
+              <span class="help-title">Mouse</span>
+              <p>Click empty space to create a node.</p>
+              <p>Drag a node to reposition it.</p>
+              <p><kbd>Shift</kbd> + drag from node to node to connect.</p>
+              <p><kbd>Alt</kbd> + click a node to delete it.</p>
+            </div>
+            <div>
+              <span class="help-title">Hand</span>
+              <p>Thumb + index pinch: create, select, drag.</p>
+              <p>Thumb + middle pinch: connect source to target.</p>
+              <p>Thumb + ring pinch: delete hovered node after dwell.</p>
+              <p>Cursor follows the tracked index fingertip.</p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
