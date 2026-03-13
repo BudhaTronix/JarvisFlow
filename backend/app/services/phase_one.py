@@ -82,6 +82,24 @@ class StaticDatasetService:
                 down=_topic("Fossils", "Evidence of life from the past"),
                 left=_topic("Adaptation", "Features shaped by environment and pressure"),
             ),
+            _page(
+                "biology-human-systems",
+                "Human Systems",
+                _topic("Human Physiology", "How major body systems coordinate to keep us alive"),
+                up=_topic("Nervous System", "Carries signals that coordinate sensation and response"),
+                right=_topic("Circulation", "Moves oxygen, nutrients, and waste through the body"),
+                down=_topic("Respiration", "Supports gas exchange and cellular energy production"),
+                left=_topic("Homeostasis", "Keeps internal conditions balanced and stable"),
+            ),
+            _page(
+                "biology-research",
+                "Research",
+                _topic("Biological Research", "How scientists investigate living systems and test ideas"),
+                up=_topic("Observation", "Notice patterns, behaviors, and structures worth studying"),
+                right=_topic("Experimentation", "Design controlled tests to check a biological question"),
+                down=_topic("Data Analysis", "Interpret evidence and decide what the results mean"),
+                left=_topic("Ethics", "Protect people, animals, and ecosystems during research"),
+            ),
         ]
         return _response_from_pages("static", pages)
 
@@ -160,6 +178,64 @@ class PlaceholderDatasetService:
                     "Partnerships",
                     f"Find collaborators or adjacent teams that can strengthen {clean_topic}.",
                     f"{root_id}-partnerships",
+                ),
+            ),
+            _page(
+                f"{root_id}-signals",
+                "Signals",
+                _topic(
+                    f"{clean_topic} Signals",
+                    f"Track the signs that show whether {clean_topic} is gaining traction or losing clarity.",
+                    f"{root_id}-signals-root",
+                ),
+                up=_topic(
+                    "Metrics",
+                    f"Choose the measurements that best reflect progress for {clean_topic}.",
+                    f"{root_id}-metrics",
+                ),
+                right=_topic(
+                    "Feedback",
+                    f"Capture what users, stakeholders, or teammates say about {clean_topic}.",
+                    f"{root_id}-feedback",
+                ),
+                down=_topic(
+                    "Watchouts",
+                    f"Notice the early warning signs that could derail {clean_topic}.",
+                    f"{root_id}-watchouts",
+                ),
+                left=_topic(
+                    "Patterns",
+                    f"Look for repeated behaviors and recurring themes around {clean_topic}.",
+                    f"{root_id}-patterns",
+                ),
+            ),
+            _page(
+                f"{root_id}-launch",
+                "Launch",
+                _topic(
+                    f"{clean_topic} Rollout",
+                    f"Organize the next public-facing or team-facing release steps for {clean_topic}.",
+                    f"{root_id}-rollout",
+                ),
+                up=_topic(
+                    "Milestones",
+                    f"Break {clean_topic} into visible checkpoints that make momentum easy to follow.",
+                    f"{root_id}-milestones",
+                ),
+                right=_topic(
+                    "Messaging",
+                    f"Clarify how to explain the value and purpose of {clean_topic}.",
+                    f"{root_id}-messaging",
+                ),
+                down=_topic(
+                    "Dependencies",
+                    f"List what must be ready before {clean_topic} can move forward confidently.",
+                    f"{root_id}-dependencies",
+                ),
+                left=_topic(
+                    "Review",
+                    f"Plan the retrospective questions that will sharpen the next version of {clean_topic}.",
+                    f"{root_id}-review",
                 ),
             ),
         ]

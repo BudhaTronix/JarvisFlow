@@ -112,7 +112,7 @@ You can use the app without gestures.
 
 ## Static phase-1 dataset
 
-When the input is blank, the backend returns three hardcoded topic sets. The first set is the original requested Biology page:
+When the input is blank, the backend returns five hardcoded topic sets. The first set is the original requested Biology page:
 
 - Center: `Biology` -> `Study of living organisms`
 - Up: `Cells` -> `Basic unit of life`
@@ -122,11 +122,13 @@ When the input is blank, the backend returns three hardcoded topic sets. The fir
 
 Additional swipe pages for the static dataset are also hardcoded in `backend/app/services/phase_one.py`.
 
-When the input is non-blank, the backend returns three placeholder topic sets centered on the submitted idea:
+When the input is non-blank, the backend returns five placeholder topic sets centered on the submitted idea:
 
 - `Overview`
 - `Execution`
 - `Expansion`
+- `Signals`
+- `Launch`
 
 ## Where to add OpenAI later
 
@@ -137,4 +139,6 @@ To add OpenAI later:
 1. Create a new service implementation that matches the `expand(topic)` contract.
 2. Replace the phase-1 service returned by `get_topic_expansion_service()`.
 3. Use `OPENAI_API_KEY` and `OPENAI_MODEL` from the backend environment when you wire the real expansion logic.
+
+
 
