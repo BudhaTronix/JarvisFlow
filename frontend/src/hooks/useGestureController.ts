@@ -3,18 +3,23 @@ import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 
 import {
   calculateFingerBendRatio,
+  centroid,
   clampPoint,
   createThresholds,
   distance,
+  isClosedPalm,
   mirrorPoint,
   resolveDominantBentFinger,
+  separateTrackedPoints,
   smoothPoint,
+  spreadPointAwayFromOrigin,
 } from "../lib/gesture";
 import type { ScreenPoint, SelectedNode, TopicPositions } from "../lib/types";
 
 interface GestureControllerOptions {
   enabled: boolean;
   onTopicSelect: (topic: SelectedNode) => void;
+  onClosedPalm: () => void;
 }
 
 const DEFAULT_MODEL_ASSET_PATH =
@@ -23,10 +28,10 @@ const MODEL_ASSET_PATH = import.meta.env.VITE_HAND_LANDMARKER_MODEL_URL?.trim() 
 const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`;
 const DEFAULT_TOPIC_POSITIONS: TopicPositions = {
   center: { x: 0.5, y: 0.5 },
-  up: { x: 0.5, y: 0.16 },
-  right: { x: 0.82, y: 0.5 },
-  down: { x: 0.5, y: 0.84 },
-  left: { x: 0.18, y: 0.5 },
+  up: { x: 0.5, y: 0.12 },
+  right: { x: 0.88, y: 0.5 },
+  down: { x: 0.5, y: 0.88 },
+  left: { x: 0.12, y: 0.5 },
 };
 const TOPIC_KEYS: SelectedNode[] = ["center", "up", "right", "down", "left"];
 
@@ -56,9 +61,9 @@ function smoothTrackedPoint(
   return nextPoint;
 }
 
-export function useGestureController({ enabled, onTopicSelect }: GestureControllerOptions) {
+export function useGestureController({ enabled, onTopicSelect, onClosedPalm }: GestureControllerOptions) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const callbacksRef = useRef({ onTopicSelect });
+  const callbacksRef = useRef({ onTopicSelect, onClosedPalm });
   const smoothedPointsRef = useRef<Record<SelectedNode, ScreenPoint | null>>({
     center: DEFAULT_TOPIC_POSITIONS.center,
     up: DEFAULT_TOPIC_POSITIONS.up,
@@ -68,11 +73,12 @@ export function useGestureController({ enabled, onTopicSelect }: GestureControll
   });
   const pendingTopicRef = useRef<SelectedNode | null>(null);
   const stableFramesRef = useRef(0);
+  const closedPalmFramesRef = useRef(0);
   const cooldownUntilRef = useRef(0);
   const lastSeenRef = useRef(0);
   const [topicPositions, setTopicPositions] = useState<TopicPositions>(DEFAULT_TOPIC_POSITIONS);
 
-  callbacksRef.current = { onTopicSelect };
+  callbacksRef.current = { onTopicSelect, onClosedPalm };
 
   useEffect(() => {
     if (!enabled) {
@@ -112,6 +118,7 @@ export function useGestureController({ enabled, onTopicSelect }: GestureControll
         left: DEFAULT_TOPIC_POSITIONS.left,
       };
       resetSelectionTracking();
+      closedPalmFramesRef.current = 0;
       updateTopicPositions(DEFAULT_TOPIC_POSITIONS);
     };
 
@@ -157,20 +164,35 @@ export function useGestureController({ enabled, onTopicSelect }: GestureControll
       const middleTip = clampPoint(mirrorPoint({ x: landmarks[12].x, y: landmarks[12].y }));
       const ringTip = clampPoint(mirrorPoint({ x: landmarks[16].x, y: landmarks[16].y }));
       const pinkyTip = clampPoint(mirrorPoint({ x: landmarks[20].x, y: landmarks[20].y }));
+      const wrist = mirrorPoint({ x: landmarks[0].x, y: landmarks[0].y });
+      const indexMcp = mirrorPoint({ x: landmarks[5].x, y: landmarks[5].y });
+      const middleMcp = mirrorPoint({ x: landmarks[9].x, y: landmarks[9].y });
+      const ringMcp = mirrorPoint({ x: landmarks[13].x, y: landmarks[13].y });
+      const pinkyMcp = mirrorPoint({ x: landmarks[17].x, y: landmarks[17].y });
+      const palmCenter = centroid([wrist, indexMcp, middleMcp, ringMcp, pinkyMcp]);
 
+      const handSize = (distance(wrist, indexMcp) + distance(wrist, pinkyMcp)) / 2;
+      const spreadDistance = Math.max(handSize * 1.22, 0.14);
+      const separatedPositions = separateTrackedPoints(
+        {
+          left: spreadPointAwayFromOrigin(thumbTip, palmCenter, spreadDistance),
+          up: spreadPointAwayFromOrigin(indexTip, palmCenter, spreadDistance),
+          center: spreadPointAwayFromOrigin(middleTip, palmCenter, spreadDistance * 0.78),
+          down: spreadPointAwayFromOrigin(ringTip, palmCenter, spreadDistance),
+          right: spreadPointAwayFromOrigin(pinkyTip, palmCenter, spreadDistance),
+        },
+        Math.max(handSize * 1.45, 0.22),
+        ["center"],
+      );
       const nextPositions: TopicPositions = {
-        left: smoothTrackedPoint(smoothedPointsRef.current, "left", thumbTip),
-        up: smoothTrackedPoint(smoothedPointsRef.current, "up", indexTip),
-        center: smoothTrackedPoint(smoothedPointsRef.current, "center", middleTip),
-        down: smoothTrackedPoint(smoothedPointsRef.current, "down", ringTip),
-        right: smoothTrackedPoint(smoothedPointsRef.current, "right", pinkyTip),
+        left: smoothTrackedPoint(smoothedPointsRef.current, "left", separatedPositions.left),
+        up: smoothTrackedPoint(smoothedPointsRef.current, "up", separatedPositions.up),
+        center: smoothTrackedPoint(smoothedPointsRef.current, "center", separatedPositions.center),
+        down: smoothTrackedPoint(smoothedPointsRef.current, "down", separatedPositions.down),
+        right: smoothTrackedPoint(smoothedPointsRef.current, "right", separatedPositions.right),
       };
       updateTopicPositions(nextPositions);
 
-      const mirroredWrist = mirrorPoint({ x: landmarks[0].x, y: landmarks[0].y });
-      const mirroredIndexMcp = mirrorPoint({ x: landmarks[5].x, y: landmarks[5].y });
-      const mirroredPinkyMcp = mirrorPoint({ x: landmarks[17].x, y: landmarks[17].y });
-      const handSize = (distance(mirroredWrist, mirroredIndexMcp) + distance(mirroredWrist, mirroredPinkyMcp)) / 2;
       const thresholds = createThresholds(handSize);
       const bendThreshold = Math.max(0.2, thresholds.fingerBendRatio);
 
@@ -181,30 +203,53 @@ export function useGestureController({ enabled, onTopicSelect }: GestureControll
           thumbTip,
         ]),
         up: calculateFingerBendRatio([
-          mirrorPoint({ x: landmarks[5].x, y: landmarks[5].y }),
+          indexMcp,
           mirrorPoint({ x: landmarks[6].x, y: landmarks[6].y }),
           mirrorPoint({ x: landmarks[7].x, y: landmarks[7].y }),
           indexTip,
         ]),
         center: calculateFingerBendRatio([
-          mirrorPoint({ x: landmarks[9].x, y: landmarks[9].y }),
+          middleMcp,
           mirrorPoint({ x: landmarks[10].x, y: landmarks[10].y }),
           mirrorPoint({ x: landmarks[11].x, y: landmarks[11].y }),
           middleTip,
         ]),
         down: calculateFingerBendRatio([
-          mirrorPoint({ x: landmarks[13].x, y: landmarks[13].y }),
+          ringMcp,
           mirrorPoint({ x: landmarks[14].x, y: landmarks[14].y }),
           mirrorPoint({ x: landmarks[15].x, y: landmarks[15].y }),
           ringTip,
         ]),
         right: calculateFingerBendRatio([
-          mirrorPoint({ x: landmarks[17].x, y: landmarks[17].y }),
+          pinkyMcp,
           mirrorPoint({ x: landmarks[18].x, y: landmarks[18].y }),
           mirrorPoint({ x: landmarks[19].x, y: landmarks[19].y }),
           pinkyTip,
         ]),
       };
+
+      const closedPalmDetected = isClosedPalm(
+        [thumbTip, indexTip, middleTip, ringTip, pinkyTip],
+        palmCenter,
+        handSize,
+        [bendMap.left, bendMap.up, bendMap.center, bendMap.down, bendMap.right],
+        bendThreshold,
+      );
+
+      if (closedPalmDetected) {
+        closedPalmFramesRef.current += 1;
+      } else {
+        closedPalmFramesRef.current = 0;
+      }
+
+      if (closedPalmFramesRef.current >= 4 && now >= cooldownUntilRef.current) {
+        cooldownUntilRef.current = now + 1100;
+        resetSelectionTracking();
+        closedPalmFramesRef.current = 0;
+        callbacksRef.current.onClosedPalm();
+        animationFrame = window.requestAnimationFrame(processFrame);
+        return;
+      }
 
       const bentTopic = resolveDominantBentFinger(bendMap, bendThreshold);
 

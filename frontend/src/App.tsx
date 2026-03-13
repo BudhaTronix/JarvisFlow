@@ -46,9 +46,17 @@ export default function App() {
     openTopicByKey(selectedNode);
   };
 
+  const handleBack = () => {
+    setGraph(null);
+    setSelectedNode("center");
+    setOpenTopic(null);
+    setError(null);
+  };
+
   const { videoRef, topicPositions } = useGestureController({
     enabled: Boolean(graph),
     onTopicSelect: openTopicByKey,
+    onClosedPalm: handleBack,
   });
 
   useKeyboardNavigation({
@@ -78,13 +86,6 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleBack = () => {
-    setGraph(null);
-    setSelectedNode("center");
-    setOpenTopic(null);
-    setError(null);
   };
 
   if (!graph) {

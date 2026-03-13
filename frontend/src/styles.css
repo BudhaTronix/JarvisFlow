@@ -375,7 +375,7 @@ button {
 .topic-node {
   position: absolute;
   z-index: 2;
-  width: min(220px, 28vw);
+  width: min(204px, 24vw);
   padding: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 24px;
@@ -388,7 +388,7 @@ button {
 }
 
 .topic-node--root {
-  width: min(260px, 33vw);
+  width: min(244px, 29vw);
 }
 
 .topic-node--left {
@@ -540,10 +540,11 @@ button {
   }
 
   .topic-node {
-    width: min(200px, 42vw);
+    width: min(188px, 38vw);
   }
 
   .topic-node--root {
-    width: min(220px, 52vw);
+    width: min(212px, 44vw);
   }
 }
+
