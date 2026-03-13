@@ -18,6 +18,7 @@ import type { ScreenPoint, SelectedNode, TopicPositions } from "../lib/types";
 
 interface GestureControllerOptions {
   enabled: boolean;
+  isTopicOpen: boolean;
   onTopicSelect: (topic: SelectedNode) => void;
   onClosedPalm: () => void;
 }
@@ -61,9 +62,14 @@ function smoothTrackedPoint(
   return nextPoint;
 }
 
-export function useGestureController({ enabled, onTopicSelect, onClosedPalm }: GestureControllerOptions) {
+export function useGestureController({
+  enabled,
+  isTopicOpen,
+  onTopicSelect,
+  onClosedPalm,
+}: GestureControllerOptions) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const callbacksRef = useRef({ onTopicSelect, onClosedPalm });
+  const interactionRef = useRef({ onTopicSelect, onClosedPalm, isTopicOpen });
   const smoothedPointsRef = useRef<Record<SelectedNode, ScreenPoint | null>>({
     center: DEFAULT_TOPIC_POSITIONS.center,
     up: DEFAULT_TOPIC_POSITIONS.up,
@@ -74,11 +80,12 @@ export function useGestureController({ enabled, onTopicSelect, onClosedPalm }: G
   const pendingTopicRef = useRef<SelectedNode | null>(null);
   const stableFramesRef = useRef(0);
   const closedPalmFramesRef = useRef(0);
-  const cooldownUntilRef = useRef(0);
+  const selectionCooldownUntilRef = useRef(0);
+  const closeCooldownUntilRef = useRef(0);
   const lastSeenRef = useRef(0);
   const [topicPositions, setTopicPositions] = useState<TopicPositions>(DEFAULT_TOPIC_POSITIONS);
 
-  callbacksRef.current = { onTopicSelect, onClosedPalm };
+  interactionRef.current = { onTopicSelect, onClosedPalm, isTopicOpen };
 
   useEffect(() => {
     if (!enabled) {
@@ -242,18 +249,26 @@ export function useGestureController({ enabled, onTopicSelect, onClosedPalm }: G
         closedPalmFramesRef.current = 0;
       }
 
-      if (closedPalmFramesRef.current >= 4 && now >= cooldownUntilRef.current) {
-        cooldownUntilRef.current = now + 1100;
+      const requiredCloseFrames = interactionRef.current.isTopicOpen ? 2 : 4;
+      if (closedPalmFramesRef.current >= requiredCloseFrames && now >= closeCooldownUntilRef.current) {
+        closeCooldownUntilRef.current = now + 900;
+        selectionCooldownUntilRef.current = now + 450;
         resetSelectionTracking();
         closedPalmFramesRef.current = 0;
-        callbacksRef.current.onClosedPalm();
+        interactionRef.current.onClosedPalm();
+        animationFrame = window.requestAnimationFrame(processFrame);
+        return;
+      }
+
+      if (interactionRef.current.isTopicOpen) {
+        resetSelectionTracking();
         animationFrame = window.requestAnimationFrame(processFrame);
         return;
       }
 
       const bentTopic = resolveDominantBentFinger(bendMap, bendThreshold);
 
-      if (!bentTopic || now < cooldownUntilRef.current) {
+      if (!bentTopic || now < selectionCooldownUntilRef.current) {
         if (!bentTopic) {
           resetSelectionTracking();
         }
@@ -269,8 +284,8 @@ export function useGestureController({ enabled, onTopicSelect, onClosedPalm }: G
       }
 
       if (stableFramesRef.current >= 3) {
-        callbacksRef.current.onTopicSelect(bentTopic);
-        cooldownUntilRef.current = now + 850;
+        interactionRef.current.onTopicSelect(bentTopic);
+        selectionCooldownUntilRef.current = now + 850;
         resetSelectionTracking();
       }
 

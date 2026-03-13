@@ -24,14 +24,18 @@ export default function App() {
     setOpenTopic(topic === "center" ? graph.root : graph.directions[topic]);
   };
 
+  const closeOpenTopic = () => {
+    setOpenTopic(null);
+  };
+
   const selectCenter = () => {
     setSelectedNode("center");
-    setOpenTopic(null);
+    closeOpenTopic();
   };
 
   const highlightDirection = (direction: Direction) => {
     setSelectedNode(direction);
-    setOpenTopic(null);
+    closeOpenTopic();
   };
 
   const openCenter = () => {
@@ -49,13 +53,13 @@ export default function App() {
   const handleStartOver = () => {
     setGraph(null);
     setSelectedNode("center");
-    setOpenTopic(null);
+    closeOpenTopic();
     setError(null);
   };
 
   const handlePalmStepBack = () => {
     if (openTopic) {
-      setOpenTopic(null);
+      closeOpenTopic();
       return;
     }
 
@@ -64,6 +68,7 @@ export default function App() {
 
   const { videoRef, topicPositions } = useGestureController({
     enabled: Boolean(graph),
+    isTopicOpen: Boolean(openTopic),
     onTopicSelect: openTopicByKey,
     onClosedPalm: handlePalmStepBack,
   });
@@ -74,7 +79,7 @@ export default function App() {
     onSelectCenter: selectCenter,
     onHighlightDirection: highlightDirection,
     onOpenSelected: openSelected,
-    onClosePanel: () => setOpenTopic(null),
+    onClosePanel: closeOpenTopic,
   });
 
   const handleSubmit = async () => {
@@ -85,7 +90,7 @@ export default function App() {
       const nextGraph = await fetchBrainstorm(topicInput);
       setGraph(nextGraph);
       setSelectedNode("center");
-      setOpenTopic(null);
+      closeOpenTopic();
     } catch (submissionError) {
       setError(
         submissionError instanceof Error
@@ -119,7 +124,7 @@ export default function App() {
       onBack={handleStartOver}
       onOpenCenter={openCenter}
       onOpenDirection={openDirection}
-      onClosePanel={() => setOpenTopic(null)}
+      onClosePanel={closeOpenTopic}
     />
   );
 }
