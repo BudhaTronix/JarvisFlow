@@ -46,17 +46,26 @@ export default function App() {
     openTopicByKey(selectedNode);
   };
 
-  const handleBack = () => {
+  const handleStartOver = () => {
     setGraph(null);
     setSelectedNode("center");
     setOpenTopic(null);
     setError(null);
   };
 
+  const handlePalmStepBack = () => {
+    if (openTopic) {
+      setOpenTopic(null);
+      return;
+    }
+
+    handleStartOver();
+  };
+
   const { videoRef, topicPositions } = useGestureController({
     enabled: Boolean(graph),
     onTopicSelect: openTopicByKey,
-    onClosedPalm: handleBack,
+    onClosedPalm: handlePalmStepBack,
   });
 
   useKeyboardNavigation({
@@ -107,7 +116,7 @@ export default function App() {
       openTopic={openTopic}
       videoRef={videoRef}
       topicPositions={topicPositions}
-      onBack={handleBack}
+      onBack={handleStartOver}
       onOpenCenter={openCenter}
       onOpenDirection={openDirection}
       onClosePanel={() => setOpenTopic(null)}

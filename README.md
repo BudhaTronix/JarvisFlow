@@ -12,7 +12,7 @@ JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend 
 - Attaches each topic to a fingertip when a hand is visible.
 - Spreads the floating topics outward from the palm so they stay separated instead of overlapping.
 - Opens topic meaning cards in a centered modal after a gesture selection or with mouse/keyboard fallback controls.
-- Returns to the start screen when you make a stable closed-palm gesture.
+- Uses the closed-palm gesture as a one-step-back action: it closes an open topic card first, and a second closed palm from the mind map returns to the start screen.
 - Runs MediaPipe hand landmark detection in the browser, not on the backend.
 
 ## Project layout
@@ -69,8 +69,10 @@ Phase-1 gesture flow:
 4. The topic labels are pushed outward from the palm center so they stay readable and avoid overlapping.
 5. Bend one finger so its curl changes by more than about 20%.
 6. The strongest bent finger is treated as the selected topic and opens that topic card.
-7. Close the whole hand into a stable fist to close the current topic and return to the start screen.
-8. A short cooldown prevents immediate retriggers.
+7. Close the whole hand into a stable fist to go back one step.
+8. If a topic card is open, the fist closes the card and returns to the mind map.
+9. If the mind map is already the current view, the next fist returns to the start screen.
+10. A short cooldown prevents immediate retriggers.
 
 Notes:
 
