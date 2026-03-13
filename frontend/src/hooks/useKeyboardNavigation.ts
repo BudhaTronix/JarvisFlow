@@ -4,35 +4,51 @@ import type { Direction, SelectedNode } from "../lib/types";
 
 interface KeyboardNavigationOptions {
   enabled: boolean;
+  canMoveToNextPage: boolean;
+  canMoveToPreviousPage: boolean;
   selectedNode: SelectedNode;
   onSelectCenter: () => void;
   onHighlightDirection: (direction: Direction) => void;
   onOpenSelected: () => void;
   onClosePanel: () => void;
+  onNextPage: () => void;
+  onPreviousPage: () => void;
 }
 
 export function useKeyboardNavigation({
   enabled,
+  canMoveToNextPage,
+  canMoveToPreviousPage,
   selectedNode,
   onSelectCenter,
   onHighlightDirection,
   onOpenSelected,
   onClosePanel,
+  onNextPage,
+  onPreviousPage,
 }: KeyboardNavigationOptions) {
   const handlersRef = useRef({
+    canMoveToNextPage,
+    canMoveToPreviousPage,
     selectedNode,
     onSelectCenter,
     onHighlightDirection,
     onOpenSelected,
     onClosePanel,
+    onNextPage,
+    onPreviousPage,
   });
 
   handlersRef.current = {
+    canMoveToNextPage,
+    canMoveToPreviousPage,
     selectedNode,
     onSelectCenter,
     onHighlightDirection,
     onOpenSelected,
     onClosePanel,
+    onNextPage,
+    onPreviousPage,
   };
 
   useEffect(() => {
@@ -67,6 +83,18 @@ export function useKeyboardNavigation({
         case "Home":
           event.preventDefault();
           handlersRef.current.onSelectCenter();
+          break;
+        case "PageDown":
+          if (handlersRef.current.canMoveToNextPage) {
+            event.preventDefault();
+            handlersRef.current.onNextPage();
+          }
+          break;
+        case "PageUp":
+          if (handlersRef.current.canMoveToPreviousPage) {
+            event.preventDefault();
+            handlersRef.current.onPreviousPage();
+          }
           break;
         case "Enter":
         case " ":

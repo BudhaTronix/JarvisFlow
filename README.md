@@ -1,24 +1,26 @@
 # JARVIS Flow
 
-JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend and a TypeScript frontend. It starts from a root topic, renders a black-background floating topic field, and lets you explore the five phase-1 topics with MediaPipe hand tracking, mouse clicks, or keyboard shortcuts.
+JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend and a TypeScript frontend. It starts from a root topic, renders a black-background floating topic field, and lets you explore phase-1 topic sets with MediaPipe hand tracking, mouse clicks, or keyboard shortcuts.
 
 ## What phase 1 does
 
 - Shows a start screen with the prompt `Enter a word or a group of words to start brainstorming`.
 - Sends the submitted text to a Python API.
 - Uses a static Biology dataset when the submitted value is blank.
-- Uses a placeholder 5-node structure when the submitted value is non-blank.
+- Uses a placeholder multi-page topic structure when the submitted value is non-blank.
 - Keeps the floating topic field centered on the page.
 - Attaches each topic to a fingertip when a hand is visible.
 - Spreads the floating topics outward from the palm so they stay separated instead of overlapping.
 - Opens topic meaning cards in a centered modal after a gesture selection or with mouse/keyboard fallback controls.
 - Uses the closed-palm gesture as a one-step-back action: it closes an open topic card first, and a second closed palm from the mind map returns to the start screen.
 - Lets you configure a pause after the close gesture so hand tracking waits before starting the next detection cycle.
-- Runs MediaPipe hand landmark detection in the browser, not on the backend.
+- Supports horizontal swipe navigation between topic sets when another set is available.
+- Runs browser-side hand tracking with the MediaPipe GPU delegate when a compatible WebGL path is available, otherwise it falls back to CPU.
+- Throttles hand-landmark detection to reduce CPU usage.
 
 ## Project layout
 
-- `frontend/`: React + Vite + TypeScript app, MediaPipe hand tracking, UI, keyboard fallback, and gesture helpers.
+- `frontend/`: React + Vite + TypeScript app, MediaPipe hand tracking, paged topic navigation, UI, keyboard fallback, and gesture helpers.
 - `backend/`: FastAPI app, typed response models, phase-1 topic expansion service, and backend unit tests.
 
 ## Run the backend
@@ -73,8 +75,10 @@ Phase-1 gesture flow:
 6. The strongest bent finger is treated as the selected topic and opens that topic card.
 7. Close the whole hand into a stable fist to go back one step.
 8. If a topic card is open, the fist closes the card and returns to the mind map.
-9. After a close/back gesture, the app pauses gesture detection for the configured settle time.
-10. If the mind map is already the current view, the next fist returns to the start screen.
+9. Sweep an open hand from right to left to move to the next topic set.
+10. Sweep an open hand from left to right to move to the previous topic set.
+11. If another topic set is not available in that direction, the swipe does nothing.
+12. After a close/back gesture, the app pauses gesture detection for the configured settle time.
 
 Notes:
 
@@ -85,6 +89,8 @@ Notes:
 - The MediaPipe WASM runtime is served locally from `frontend/public/mediapipe/wasm` so it matches the installed package version.
 - By default the hand landmark model is loaded from Google's hosted MediaPipe model URL. If that URL is blocked on your network, set `VITE_HAND_LANDMARKER_MODEL_URL` to your own hosted copy.
 - The default close-gesture pause is 1200 ms, and you can override it with `VITE_GESTURE_CLOSE_PAUSE_MS`.
+- The installed MediaPipe web package exposes a `GPU` delegate that uses a hidden WebGL canvas on the web; it does not expose a true WebGPU-specific task path in this build.
+- Hand-landmark inference is throttled to lower CPU use while keeping gestures responsive.
 
 ## Mouse and keyboard fallback
 
@@ -92,15 +98,18 @@ You can use the app without gestures.
 
 - Click the center node to open the root topic.
 - Click a floating topic to open that topic.
+- Use the `Prev Set` and `Next Set` buttons when more topic sets are available.
 - Keyboard shortcuts:
   - `ArrowUp`, `ArrowRight`, `ArrowDown`, `ArrowLeft`: highlight a branch
   - `Home`: focus the center node
+  - `PageUp`: previous topic set
+  - `PageDown`: next topic set
   - `Enter` or `Space`: open the selected topic
   - `Escape`: close the topic panel
 
 ## Static phase-1 dataset
 
-When the input is blank, the backend returns:
+When the input is blank, the backend returns three hardcoded topic sets. The first set is the original requested Biology page:
 
 - Center: `Biology` -> `Study of living organisms`
 - Up: `Cells` -> `Basic unit of life`
@@ -108,12 +117,13 @@ When the input is blank, the backend returns:
 - Down: `Ecology` -> `Study of organisms and environment`
 - Left: `Human Body` -> `Organs, tissues, and systems`
 
-When the input is non-blank, the backend returns a placeholder structure centered on the submitted topic with these four branches:
+Additional swipe pages for the static dataset are also hardcoded in `backend/app/services/phase_one.py`.
 
-- `Core Idea`
-- `Applications`
-- `Questions`
-- `Related Topics`
+When the input is non-blank, the backend returns three placeholder topic sets centered on the submitted idea:
+
+- `Overview`
+- `Execution`
+- `Expansion`
 
 ## Where to add OpenAI later
 

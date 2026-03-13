@@ -171,6 +171,14 @@ button {
   border-color: rgba(255, 255, 255, 0.14);
 }
 
+.ghost-button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+}
+
 .entry-note,
 .error-text {
   margin-top: 1rem;
@@ -214,6 +222,27 @@ button {
   align-items: center;
   justify-content: center;
   gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.page-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.page-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.82rem;
 }
 
 .source-pill {
@@ -255,7 +284,8 @@ button {
   padding: 1.15rem;
 }
 
-.gesture-video-hidden {
+.gesture-video-hidden,
+.gesture-canvas-hidden {
   position: fixed;
   width: 1px;
   height: 1px;
@@ -534,7 +564,8 @@ button {
   }
 
   .header-actions,
-  .content-panel__header {
+  .content-panel__header,
+  .page-switcher {
     flex-direction: column;
   }
 

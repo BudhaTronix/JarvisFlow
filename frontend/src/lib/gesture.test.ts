@@ -6,6 +6,7 @@ import {
   distance,
   isClosedPalm,
   resolveDominantBentFinger,
+  resolveSwipeDirection,
   separateTrackedPoints,
   smoothPoint,
   spreadPointAwayFromOrigin,
@@ -64,6 +65,42 @@ describe("gesture helpers", () => {
 
     expect(separatedPoints.center).toEqual({ x: 0.5, y: 0.5 });
     expect(distance(separatedPoints.center, separatedPoints.up)).toBeGreaterThanOrEqual(0.199);
+  });
+
+  it("detects horizontal swipes and ignores mostly vertical motion", () => {
+    expect(
+      resolveSwipeDirection(
+        [
+          { x: 0.72, y: 0.42, timestamp: 0 },
+          { x: 0.52, y: 0.44, timestamp: 80 },
+          { x: 0.32, y: 0.45, timestamp: 150 },
+        ],
+        0.2,
+        0.12,
+      ),
+    ).toBe("next");
+    expect(
+      resolveSwipeDirection(
+        [
+          { x: 0.24, y: 0.46, timestamp: 0 },
+          { x: 0.45, y: 0.44, timestamp: 90 },
+          { x: 0.68, y: 0.43, timestamp: 160 },
+        ],
+        0.2,
+        0.12,
+      ),
+    ).toBe("previous");
+    expect(
+      resolveSwipeDirection(
+        [
+          { x: 0.52, y: 0.2, timestamp: 0 },
+          { x: 0.55, y: 0.42, timestamp: 100 },
+          { x: 0.58, y: 0.66, timestamp: 200 },
+        ],
+        0.2,
+        0.12,
+      ),
+    ).toBeNull();
   });
 
   it("recognizes a closed palm only when all fingertips collapse inward", () => {

@@ -6,9 +6,17 @@ export interface TopicNodeData {
   content: string;
 }
 
+export interface BrainstormPageData {
+  id: string;
+  title: string;
+  root: TopicNodeData;
+  directions: Record<Direction, TopicNodeData>;
+}
+
 export interface BrainstormResponse {
   root: TopicNodeData;
   directions: Record<Direction, TopicNodeData>;
+  pages: BrainstormPageData[];
   source: "static" | "placeholder";
 }
 

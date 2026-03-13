@@ -3,9 +3,15 @@ export interface Point {
   y: number;
 }
 
+export interface TimedPoint extends Point {
+  timestamp: number;
+}
+
 export interface GestureThresholds {
   fingerBendRatio: number;
 }
+
+export type SwipeDirection = "next" | "previous";
 
 export function distance(first: Point, second: Point): number {
   return Math.hypot(first.x - second.x, first.y - second.y);
@@ -198,6 +204,35 @@ export function separateTrackedPoints<T extends string>(
   return nextPoints;
 }
 
+export function resolveSwipeDirection(
+  samples: TimedPoint[],
+  minimumHorizontalDistance: number,
+  maximumVerticalTravel: number,
+): SwipeDirection | null {
+  if (samples.length < 2) {
+    return null;
+  }
+
+  const firstSample = samples[0];
+  const lastSample = samples[samples.length - 1];
+  const deltaX = lastSample.x - firstSample.x;
+  const deltaY = lastSample.y - firstSample.y;
+
+  if (Math.abs(deltaX) < minimumHorizontalDistance) {
+    return null;
+  }
+
+  if (Math.abs(deltaY) > maximumVerticalTravel) {
+    return null;
+  }
+
+  if (Math.abs(deltaX) < Math.abs(deltaY) * 1.8) {
+    return null;
+  }
+
+  return deltaX < 0 ? "next" : "previous";
+}
+
 export function isClosedPalm(
   tipPoints: Point[],
   palmCenter: Point,
@@ -212,4 +247,3 @@ export function isClosedPalm(
     bendRatios[0] >= bendThreshold * 0.7;
   return tipsAreClose && fingersAreBent;
 }
-

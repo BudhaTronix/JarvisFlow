@@ -1,16 +1,24 @@
 import type { RefObject } from "react";
 
-import type { BrainstormResponse, SelectedNode, TopicNodeData, TopicPositions } from "../lib/types";
+import type { BrainstormPageData, SelectedNode, TopicNodeData, TopicPositions } from "../lib/types";
 import { ContentPanel } from "./ContentPanel";
 import { TopicNode } from "./TopicNode";
 
 interface BrainstormCanvasProps {
-  graph: BrainstormResponse;
+  page: BrainstormPageData;
+  source: "static" | "placeholder";
   selectedNode: SelectedNode;
   openTopic: TopicNodeData | null;
   videoRef: RefObject<HTMLVideoElement>;
+  gpuCanvasRef: RefObject<HTMLCanvasElement>;
   topicPositions: TopicPositions;
+  pageIndex: number;
+  totalPages: number;
+  canMoveToNextPage: boolean;
+  canMoveToPreviousPage: boolean;
   onBack: () => void;
+  onNextPage: () => void;
+  onPreviousPage: () => void;
   onOpenCenter: () => void;
   onOpenDirection: (direction: "up" | "right" | "down" | "left") => void;
   onClosePanel: () => void;
@@ -30,12 +38,20 @@ function buildTrailPath(from: { x: number; y: number }, to: { x: number; y: numb
 }
 
 export function BrainstormCanvas({
-  graph,
+  page,
+  source,
   selectedNode,
   openTopic,
   videoRef,
+  gpuCanvasRef,
   topicPositions,
+  pageIndex,
+  totalPages,
+  canMoveToNextPage,
+  canMoveToPreviousPage,
   onBack,
+  onNextPage,
+  onPreviousPage,
   onOpenCenter,
   onOpenDirection,
   onClosePanel,
@@ -45,13 +61,26 @@ export function BrainstormCanvas({
       <header className="canvas-header">
         <div>
           <p className="eyebrow">Hand-Float Brainstorming</p>
-          <h1>{graph.root.label}</h1>
+          <h1>{page.root.label}</h1>
           <p className="canvas-subtitle">
-            Each topic follows one fingertip. Bend a finger by about 20% or more to open that topic.
+            Bend a finger to open a topic, make a fist to step back, and swipe an open hand left or right to move between topic sets.
           </p>
         </div>
         <div className="header-actions">
-          <span className={`source-pill source-pill--${graph.source}`}>{graph.source}</span>
+          <span className={`source-pill source-pill--${source}`}>{source}</span>
+          {totalPages > 1 ? (
+            <div className="page-switcher" aria-label="Topic set navigation">
+              <button className="ghost-button" type="button" onClick={onPreviousPage} disabled={!canMoveToPreviousPage}>
+                Prev Set
+              </button>
+              <span className="page-pill">
+                {page.title} {pageIndex + 1} / {totalPages}
+              </span>
+              <button className="ghost-button" type="button" onClick={onNextPage} disabled={!canMoveToNextPage}>
+                Next Set
+              </button>
+            </div>
+          ) : null}
           <button className="ghost-button" type="button" onClick={onBack}>
             New topic
           </button>
@@ -61,6 +90,7 @@ export function BrainstormCanvas({
       <section className="canvas-layout">
         <section className="mindmap-card">
           <video ref={videoRef} className="gesture-video-hidden" autoPlay muted playsInline aria-hidden="true" />
+          <canvas ref={gpuCanvasRef} className="gesture-canvas-hidden" aria-hidden="true" />
 
           <div className="mindmap-stage">
             <svg className="mindmap-trails" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -90,8 +120,8 @@ export function BrainstormCanvas({
 
             <TopicNode
               topicKey="center"
-              label={graph.root.label}
-              content={graph.root.content}
+              label={page.root.label}
+              content={page.root.content}
               position={topicPositions.center}
               isRoot
               selected={selectedNode === "center"}
@@ -99,32 +129,32 @@ export function BrainstormCanvas({
             />
             <TopicNode
               topicKey="up"
-              label={graph.directions.up.label}
-              content={graph.directions.up.content}
+              label={page.directions.up.label}
+              content={page.directions.up.content}
               position={topicPositions.up}
               selected={selectedNode === "up"}
               onClick={() => onOpenDirection("up")}
             />
             <TopicNode
               topicKey="right"
-              label={graph.directions.right.label}
-              content={graph.directions.right.content}
+              label={page.directions.right.label}
+              content={page.directions.right.content}
               position={topicPositions.right}
               selected={selectedNode === "right"}
               onClick={() => onOpenDirection("right")}
             />
             <TopicNode
               topicKey="down"
-              label={graph.directions.down.label}
-              content={graph.directions.down.content}
+              label={page.directions.down.label}
+              content={page.directions.down.content}
               position={topicPositions.down}
               selected={selectedNode === "down"}
               onClick={() => onOpenDirection("down")}
             />
             <TopicNode
               topicKey="left"
-              label={graph.directions.left.label}
-              content={graph.directions.left.content}
+              label={page.directions.left.label}
+              content={page.directions.left.content}
               position={topicPositions.left}
               selected={selectedNode === "left"}
               onClick={() => onOpenDirection("left")}
