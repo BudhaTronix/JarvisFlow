@@ -13,6 +13,7 @@ JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend 
 - Spreads the floating topics outward from the palm so they stay separated instead of overlapping.
 - Opens topic meaning cards in a centered modal after a gesture selection or with mouse/keyboard fallback controls.
 - Uses the closed-palm gesture as a one-step-back action: it closes an open topic card first, and a second closed palm from the mind map returns to the start screen.
+- Lets you configure a pause after the close gesture so hand tracking waits before starting the next detection cycle.
 - Runs MediaPipe hand landmark detection in the browser, not on the backend.
 
 ## Project layout
@@ -43,6 +44,7 @@ The API endpoints are:
 3. Create a local env file if needed and set:
    - `VITE_API_BASE_URL=http://localhost:8000`
    - `VITE_HAND_LANDMARKER_MODEL_URL=` (optional override if you want to host the `.task` model yourself)
+   - `VITE_GESTURE_CLOSE_PAUSE_MS=1200` (optional pause after a close/back gesture before gesture detection resumes)
 4. Start the dev server:
    `npm run dev`
 5. Open the URL printed by Vite, usually `http://localhost:5173`.
@@ -71,8 +73,8 @@ Phase-1 gesture flow:
 6. The strongest bent finger is treated as the selected topic and opens that topic card.
 7. Close the whole hand into a stable fist to go back one step.
 8. If a topic card is open, the fist closes the card and returns to the mind map.
-9. If the mind map is already the current view, the next fist returns to the start screen.
-10. A short cooldown prevents immediate retriggers.
+9. After a close/back gesture, the app pauses gesture detection for the configured settle time.
+10. If the mind map is already the current view, the next fist returns to the start screen.
 
 Notes:
 
@@ -82,6 +84,7 @@ Notes:
 - If no hand is visible, the topics fall back to a centered default layout.
 - The MediaPipe WASM runtime is served locally from `frontend/public/mediapipe/wasm` so it matches the installed package version.
 - By default the hand landmark model is loaded from Google's hosted MediaPipe model URL. If that URL is blocked on your network, set `VITE_HAND_LANDMARKER_MODEL_URL` to your own hosted copy.
+- The default close-gesture pause is 1200 ms, and you can override it with `VITE_GESTURE_CLOSE_PAUSE_MS`.
 
 ## Mouse and keyboard fallback
 

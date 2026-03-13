@@ -25,7 +25,12 @@ interface GestureControllerOptions {
 
 const DEFAULT_MODEL_ASSET_PATH =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+const DEFAULT_CLOSE_GESTURE_PAUSE_MS = 1200;
 const MODEL_ASSET_PATH = import.meta.env.VITE_HAND_LANDMARKER_MODEL_URL?.trim() || DEFAULT_MODEL_ASSET_PATH;
+const CLOSE_GESTURE_PAUSE_MS = (() => {
+  const parsedValue = Number.parseInt(import.meta.env.VITE_GESTURE_CLOSE_PAUSE_MS?.trim() ?? "", 10);
+  return Number.isFinite(parsedValue) && parsedValue >= 0 ? parsedValue : DEFAULT_CLOSE_GESTURE_PAUSE_MS;
+})();
 const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`;
 const DEFAULT_TOPIC_POSITIONS: TopicPositions = {
   center: { x: 0.5, y: 0.5 },
@@ -82,6 +87,7 @@ export function useGestureController({
   const closedPalmFramesRef = useRef(0);
   const selectionCooldownUntilRef = useRef(0);
   const closeCooldownUntilRef = useRef(0);
+  const gesturePauseUntilRef = useRef(0);
   const lastSeenRef = useRef(0);
   const [topicPositions, setTopicPositions] = useState<TopicPositions>(DEFAULT_TOPIC_POSITIONS);
 
@@ -200,6 +206,13 @@ export function useGestureController({
       };
       updateTopicPositions(nextPositions);
 
+      if (now < gesturePauseUntilRef.current) {
+        resetSelectionTracking();
+        closedPalmFramesRef.current = 0;
+        animationFrame = window.requestAnimationFrame(processFrame);
+        return;
+      }
+
       const thresholds = createThresholds(handSize);
       const bendThreshold = Math.max(0.2, thresholds.fingerBendRatio);
 
@@ -251,8 +264,10 @@ export function useGestureController({
 
       const requiredCloseFrames = interactionRef.current.isTopicOpen ? 2 : 4;
       if (closedPalmFramesRef.current >= requiredCloseFrames && now >= closeCooldownUntilRef.current) {
-        closeCooldownUntilRef.current = now + 900;
-        selectionCooldownUntilRef.current = now + 450;
+        const pauseUntil = now + CLOSE_GESTURE_PAUSE_MS;
+        closeCooldownUntilRef.current = pauseUntil;
+        selectionCooldownUntilRef.current = pauseUntil;
+        gesturePauseUntilRef.current = pauseUntil;
         resetSelectionTracking();
         closedPalmFramesRef.current = 0;
         interactionRef.current.onClosedPalm();

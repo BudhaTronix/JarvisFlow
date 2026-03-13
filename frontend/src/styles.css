@@ -140,7 +140,7 @@ button {
 .ghost-button {
   border-radius: 18px;
   border: none;
-  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  transition: box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
 }
 
 .submit-button {
@@ -150,10 +150,8 @@ button {
   box-shadow: 0 18px 30px rgba(66, 232, 194, 0.18);
 }
 
-.submit-button:hover,
-.ghost-button:hover,
-.topic-node:hover {
-  transform: translate(-50%, calc(-50% - 1px));
+.submit-button:hover {
+  box-shadow: 0 20px 34px rgba(66, 232, 194, 0.24);
 }
 
 .submit-button:disabled {
@@ -166,6 +164,11 @@ button {
   color: var(--ink);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ghost-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .entry-note,
@@ -547,4 +550,3 @@ button {
     width: min(212px, 44vw);
   }
 }
-
