@@ -33,16 +33,6 @@ export function centroid(points: Point[]): Point {
   };
 }
 
-export function averagePairwiseDistance(points: Point[]): number {
-  const pairs = [
-    distance(points[0], points[1]),
-    distance(points[0], points[2]),
-    distance(points[1], points[2]),
-  ];
-
-  return pairs.reduce((sum, value) => sum + value, 0) / pairs.length;
-}
-
 export function smoothPoint(previous: Point | null, next: Point, alpha = 0.35): Point {
   if (!previous) {
     return next;
@@ -56,10 +46,10 @@ export function smoothPoint(previous: Point | null, next: Point, alpha = 0.35): 
 
 export function createThresholds(handSize: number): GestureThresholds {
   return {
-    joinEnter: Math.max(handSize * 0.22, 0.03),
-    joinExit: Math.max(handSize * 0.28, 0.04),
+    joinEnter: Math.max(handSize * 0.16, 0.02),
+    joinExit: Math.max(handSize * 0.22, 0.03),
     drag: Math.max(handSize * 0.35, 0.06),
-    open: Math.max(handSize * 0.4, 0.08),
+    open: Math.max(handSize * 0.3, 0.055),
   };
 }
 
@@ -76,16 +66,12 @@ export function resolveDirection(deltaX: number, deltaY: number, dragThreshold: 
   }
 
   if (absX > absY * 1.1) {
-    return deltaX < 0 ? "left" : "right";
+    return deltaX < 0 ? "right" : "left";
   }
 
   if (absY >= absX) {
     return deltaY < 0 ? "up" : "down";
   }
 
-  return deltaX < 0 ? "left" : "right";
-}
-
-export function isWithinCenterZone(point: Point): boolean {
-  return point.x >= 0.35 && point.x <= 0.65 && point.y >= 0.28 && point.y <= 0.72;
+  return deltaX < 0 ? "right" : "left";
 }

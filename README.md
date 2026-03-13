@@ -1,6 +1,6 @@
 # JARVIS Flow
 
-JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend and a TypeScript frontend. It starts from a root topic, renders a cross-shaped mind map, and lets you explore the four branches with MediaPipe hand tracking, mouse clicks, keyboard shortcuts, or the on-screen debug pad.
+JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend and a TypeScript frontend. It starts from a root topic, renders a centered cross-shaped mind map, and lets you explore the four branches with MediaPipe hand tracking, mouse clicks, or keyboard shortcuts.
 
 ## What phase 1 does
 
@@ -9,7 +9,7 @@ JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend 
 - Uses a static Biology dataset when the submitted value is blank.
 - Uses a placeholder 5-node structure when the submitted value is non-blank.
 - Renders one center topic and four directional topics only: up, right, down, and left.
-- Opens topic meaning cards after a gesture selection or with mouse/keyboard fallback controls.
+- Opens topic meaning cards in a centered modal after a gesture selection or with mouse/keyboard fallback controls.
 - Runs MediaPipe hand landmark detection in the browser, not on the backend.
 
 ## Project layout
@@ -31,29 +31,6 @@ The API endpoints are:
 
 - `GET /api/health`
 - `POST /api/brainstorm`
-
-Request body:
-
-```json
-{
-  "topic": "biology"
-}
-```
-
-Response shape:
-
-```json
-{
-  "root": { "id": "biology", "label": "Biology", "content": "Study of living organisms" },
-  "directions": {
-    "up": { "id": "cells", "label": "Cells", "content": "Basic unit of life" },
-    "right": { "id": "genetics", "label": "Genetics", "content": "Study of genes and heredity" },
-    "down": { "id": "ecology", "label": "Ecology", "content": "Study of organisms and environment" },
-    "left": { "id": "human-body", "label": "Human Body", "content": "Organs, tissues, and systems" }
-  },
-  "source": "static"
-}
-```
 
 ## Run the frontend
 
@@ -78,30 +55,27 @@ The frontend uses MediaPipe Hand Landmarker in single-hand mode.
 
 Phase-1 gesture flow:
 
-1. Allow camera access when the brainstorm screen opens.
-2. Join thumb tip, index tip, and middle tip near the center guide shown in the camera preview.
-3. While the three fingertips stay joined, drag the hand mostly up, right, down, or left.
-4. When one direction becomes dominant and stays stable for a few frames, that branch is highlighted.
-5. Open the three fingers outward to open that topic card.
+1. Keep only index and middle fingertips together.
+2. Keep thumb, ring finger, and pinky away from that two-finger cluster.
+3. Once the two-finger join is detected, the center topic becomes active.
+4. Drag mostly up, down, left, or right to highlight one of the four branches.
+5. Separate index and middle fingertips to open the selected topic.
 6. A short cooldown prevents immediate retriggers.
 
 Notes:
 
+- Left and right gesture mapping is inverted relative to the original implementation.
+- The camera feed is hidden from the UI, but the browser still uses it behind the scenes for gesture detection.
 - Thresholds are normalized using hand size so the interaction is less sensitive to distance from the camera.
-- Smoothing and hysteresis are used to reduce flicker.
-- The preview includes a center guide because the webcam coordinate space is not the same as the mind-map canvas.
 - The MediaPipe WASM runtime is served locally from `frontend/public/mediapipe/wasm` so it matches the installed package version.
 - By default the hand landmark model is loaded from Google's hosted MediaPipe model URL. If that URL is blocked on your network, set `VITE_HAND_LANDMARKER_MODEL_URL` to your own hosted copy.
-- If model loading fails, the camera preview now stays live and the app falls back to mouse, button, and keyboard controls.
 
-## Mouse, button, and keyboard fallback
+## Mouse and keyboard fallback
 
 You can use the app without gestures.
 
 - Click the center node to open the root topic.
 - Click a directional node to open that topic.
-- Use the on-screen direction pad to highlight a direction.
-- Press `Enter` or click `Open selected topic` to open the highlighted item.
 - Keyboard shortcuts:
   - `ArrowUp`, `ArrowRight`, `ArrowDown`, `ArrowLeft`: highlight a branch
   - `Home`: focus the center node

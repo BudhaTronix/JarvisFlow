@@ -1,27 +1,17 @@
 import type { RefObject } from "react";
 
-import type { GesturePhase } from "../lib/gesture";
 import type { BrainstormResponse, Direction, SelectedNode, TopicNodeData } from "../lib/types";
-import { CameraPreview } from "./CameraPreview";
 import { ContentPanel } from "./ContentPanel";
-import { DirectionPad } from "./DirectionPad";
 import { TopicNode } from "./TopicNode";
 
 interface BrainstormCanvasProps {
   graph: BrainstormResponse;
   selectedNode: SelectedNode;
   openTopic: TopicNodeData | null;
-  cameraStatus: string;
-  cameraDetail: string;
-  gesturePhase: GesturePhase;
-  activeDirection: Direction | null;
   videoRef: RefObject<HTMLVideoElement>;
   onBack: () => void;
-  onSelectCenter: () => void;
   onOpenCenter: () => void;
-  onHighlightDirection: (direction: Direction) => void;
   onOpenDirection: (direction: Direction) => void;
-  onOpenSelected: () => void;
   onClosePanel: () => void;
 }
 
@@ -29,17 +19,10 @@ export function BrainstormCanvas({
   graph,
   selectedNode,
   openTopic,
-  cameraStatus,
-  cameraDetail,
-  gesturePhase,
-  activeDirection,
   videoRef,
   onBack,
-  onSelectCenter,
   onOpenCenter,
-  onHighlightDirection,
   onOpenDirection,
-  onOpenSelected,
   onClosePanel,
 }: BrainstormCanvasProps) {
   return (
@@ -49,7 +32,7 @@ export function BrainstormCanvas({
           <p className="eyebrow">Mind-map explorer</p>
           <h1>{graph.root.label}</h1>
           <p className="canvas-subtitle">
-            Join thumb, index, and middle finger near the camera guide, then drag outward to explore each branch.
+            Close index and middle fingertips together, keep the thumb, ring, and pinky away, then drag outward to explore each branch.
           </p>
         </div>
         <div className="header-actions">
@@ -62,21 +45,7 @@ export function BrainstormCanvas({
 
       <section className="canvas-layout">
         <section className="mindmap-card">
-          <div className="interaction-strip">
-            <CameraPreview
-              status={cameraStatus}
-              detail={cameraDetail}
-              gesturePhase={gesturePhase}
-              activeDirection={activeDirection}
-              videoRef={videoRef}
-            />
-            <DirectionPad
-              selectedNode={selectedNode}
-              onSelectCenter={onSelectCenter}
-              onHighlightDirection={onHighlightDirection}
-              onOpenSelected={onOpenSelected}
-            />
-          </div>
+          <video ref={videoRef} className="gesture-video-hidden" autoPlay muted playsInline aria-hidden="true" />
 
           <div className="mindmap-stage">
             <svg className="mindmap-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -124,9 +93,9 @@ export function BrainstormCanvas({
             />
           </div>
         </section>
-
-        <ContentPanel topic={openTopic} onClose={onClosePanel} />
       </section>
+
+      <ContentPanel topic={openTopic} onClose={onClosePanel} />
     </main>
   );
 }

@@ -2,11 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 
 import {
-  averagePairwiseDistance,
   centroid,
   createThresholds,
   distance,
-  isWithinCenterZone,
   resolveDirection,
   smoothPoint,
   type GesturePhase,
@@ -28,7 +26,7 @@ interface GestureControllerState {
 }
 
 const READY_STATUS = "Gesture camera live";
-const READY_DETAIL = "Join thumb, index, and middle finger near the center guide to begin.";
+const READY_DETAIL = "Close index and middle fingertips together, keep the other fingers away, then drag outward.";
 const DEFAULT_MODEL_ASSET_PATH =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 const MODEL_ASSET_PATH = import.meta.env.VITE_HAND_LANDMARKER_MODEL_URL?.trim() || DEFAULT_MODEL_ASSET_PATH;
@@ -178,29 +176,39 @@ export function useGestureController({
       const thumbTip = { x: landmarks[4].x, y: landmarks[4].y };
       const indexTip = { x: landmarks[8].x, y: landmarks[8].y };
       const middleTip = { x: landmarks[12].x, y: landmarks[12].y };
+      const ringTip = { x: landmarks[16].x, y: landmarks[16].y };
+      const pinkyTip = { x: landmarks[20].x, y: landmarks[20].y };
       const wrist = { x: landmarks[0].x, y: landmarks[0].y };
       const indexMcp = { x: landmarks[5].x, y: landmarks[5].y };
       const middleMcp = { x: landmarks[9].x, y: landmarks[9].y };
 
       const handSize = (distance(wrist, indexMcp) + distance(wrist, middleMcp)) / 2;
       const thresholds = createThresholds(handSize);
-      const tipCentroid = centroid([thumbTip, indexTip, middleTip]);
-      const smoothedCentroid = smoothPoint(smoothedCentroidRef.current, tipCentroid);
+      const isolationThreshold = Math.max(handSize * 0.33, 0.06);
+      const pairCentroid = centroid([indexTip, middleTip]);
+      const smoothedCentroid = smoothPoint(smoothedCentroidRef.current, pairCentroid);
       smoothedCentroidRef.current = smoothedCentroid;
 
-      const spread = averagePairwiseDistance([thumbTip, indexTip, middleTip]);
+      const pairDistance = distance(indexTip, middleTip);
+      const thumbDistance = distance(thumbTip, pairCentroid);
+      const ringDistance = distance(ringTip, pairCentroid);
+      const pinkyDistance = distance(pinkyTip, pairCentroid);
       const joinedThreshold = phaseRef.current === "idle" ? thresholds.joinEnter : thresholds.joinExit;
-      const isJoined = spread < joinedThreshold;
-      const isOpen = spread > thresholds.open;
+      const fingersAreIsolated =
+        thumbDistance > isolationThreshold &&
+        ringDistance > isolationThreshold &&
+        pinkyDistance > isolationThreshold;
+      const isJoined = pairDistance < joinedThreshold && fingersAreIsolated;
+      const isOpen = pairDistance > thresholds.open;
 
       if (phaseRef.current === "idle") {
-        if (isJoined && isWithinCenterZone(smoothedCentroid)) {
+        if (isJoined) {
           phaseRef.current = "joined";
           joinOriginRef.current = smoothedCentroid;
           callbacksRef.current.onJoinStart();
           setViewState({
             status: "Center locked",
-            detail: "Drag outward while keeping the three-finger pinch joined.",
+            detail: "Drag outward while keeping index and middle fingertips together.",
             gesturePhase: "joined",
             activeDirection: null,
           });
@@ -238,7 +246,7 @@ export function useGestureController({
             callbacksRef.current.onDirectionHighlight(candidateDirection);
             setViewState({
               status: `${candidateDirection.toUpperCase()} selected`,
-              detail: "Open the three fingers outward to reveal the topic card.",
+              detail: "Separate index and middle fingertips to open the topic.",
               gesturePhase: "dragging",
               activeDirection: candidateDirection,
             });
@@ -250,7 +258,7 @@ export function useGestureController({
             phaseRef.current = "joined";
             setViewState({
               status: "Center locked",
-              detail: "Drag outward while keeping the three-finger pinch joined.",
+              detail: "Drag outward while keeping index and middle fingertips together.",
               gesturePhase: "joined",
               activeDirection: null,
             });
@@ -291,7 +299,7 @@ export function useGestureController({
       try {
         setViewState({
           status: "Requesting camera",
-          detail: "Allow camera access to enable three-finger gesture control.",
+          detail: "Allow camera access to enable two-finger gesture control.",
         });
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
@@ -353,8 +361,8 @@ export function useGestureController({
         setViewState({
           status: previewIsLive ? "Camera preview live" : "Gesture fallback active",
           detail: previewIsLive
-            ? `${errorMessage} Camera preview is still running, but gesture tracking is unavailable. Use mouse, buttons, or keyboard instead.`
-            : `${errorMessage} Use mouse, buttons, or keyboard instead.`,
+            ? `${errorMessage} Gesture tracking is unavailable right now, but mouse and keyboard controls still work.`
+            : `${errorMessage} Use mouse or keyboard instead.`,
           gesturePhase: "idle",
           activeDirection: null,
         });

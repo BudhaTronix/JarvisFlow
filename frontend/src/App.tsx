@@ -56,7 +56,7 @@ export default function App() {
     openDirection(selectedNode);
   };
 
-  const gestureController = useGestureController({
+  const { videoRef } = useGestureController({
     enabled: Boolean(graph),
     onJoinStart: selectCenter,
     onDirectionHighlight: highlightDirection,
@@ -116,17 +116,10 @@ export default function App() {
       graph={graph}
       selectedNode={selectedNode}
       openTopic={openTopic}
-      cameraStatus={gestureController.status}
-      cameraDetail={gestureController.detail}
-      gesturePhase={gestureController.gesturePhase}
-      activeDirection={gestureController.activeDirection}
-      videoRef={gestureController.videoRef}
+      videoRef={videoRef}
       onBack={handleBack}
-      onSelectCenter={selectCenter}
       onOpenCenter={openCenter}
-      onHighlightDirection={highlightDirection}
       onOpenDirection={openDirection}
-      onOpenSelected={openSelected}
       onClosePanel={() => setOpenTopic(null)}
     />
   );
