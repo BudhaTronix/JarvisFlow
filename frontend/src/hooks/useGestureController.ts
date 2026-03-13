@@ -2,35 +2,33 @@ import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 
 import {
-  centroid,
+  calculateFingerBendRatio,
+  clampPoint,
   createThresholds,
   distance,
-  resolveDirection,
+  mirrorPoint,
+  resolveDominantBentFinger,
   smoothPoint,
-  type GesturePhase,
 } from "../lib/gesture";
-import type { Direction } from "../lib/types";
+import type { ScreenPoint, SelectedNode, TopicPositions } from "../lib/types";
 
 interface GestureControllerOptions {
   enabled: boolean;
-  onJoinStart: () => void;
-  onDirectionHighlight: (direction: Direction) => void;
-  onDirectionOpen: (direction: Direction) => void;
+  onTopicSelect: (topic: SelectedNode) => void;
 }
 
-interface GestureControllerState {
-  status: string;
-  detail: string;
-  gesturePhase: GesturePhase;
-  activeDirection: Direction | null;
-}
-
-const READY_STATUS = "Gesture camera live";
-const READY_DETAIL = "Close index and middle fingertips together, keep the other fingers away, then drag outward.";
 const DEFAULT_MODEL_ASSET_PATH =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 const MODEL_ASSET_PATH = import.meta.env.VITE_HAND_LANDMARKER_MODEL_URL?.trim() || DEFAULT_MODEL_ASSET_PATH;
 const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`;
+const DEFAULT_TOPIC_POSITIONS: TopicPositions = {
+  center: { x: 0.5, y: 0.5 },
+  up: { x: 0.5, y: 0.16 },
+  right: { x: 0.82, y: 0.5 },
+  down: { x: 0.5, y: 0.84 },
+  left: { x: 0.18, y: 0.5 },
+};
+const TOPIC_KEYS: SelectedNode[] = ["center", "up", "right", "down", "left"];
 
 function getTrackingErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) {
@@ -40,39 +38,52 @@ function getTrackingErrorMessage(error: unknown): string {
   return "MediaPipe hand tracking could not be initialized.";
 }
 
-export function useGestureController({
-  enabled,
-  onJoinStart,
-  onDirectionHighlight,
-  onDirectionOpen,
-}: GestureControllerOptions) {
+function positionsChanged(previous: TopicPositions, next: TopicPositions): boolean {
+  return TOPIC_KEYS.some(
+    (topic) =>
+      Math.abs(previous[topic].x - next[topic].x) > 0.004 ||
+      Math.abs(previous[topic].y - next[topic].y) > 0.004,
+  );
+}
+
+function smoothTrackedPoint(
+  cache: Record<SelectedNode, ScreenPoint | null>,
+  topic: SelectedNode,
+  point: ScreenPoint,
+): ScreenPoint {
+  const nextPoint = smoothPoint(cache[topic], point, 0.38);
+  cache[topic] = nextPoint;
+  return nextPoint;
+}
+
+export function useGestureController({ enabled, onTopicSelect }: GestureControllerOptions) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const callbacksRef = useRef({ onJoinStart, onDirectionHighlight, onDirectionOpen });
-  const phaseRef = useRef<GesturePhase>("idle");
-  const joinOriginRef = useRef<{ x: number; y: number } | null>(null);
-  const smoothedCentroidRef = useRef<{ x: number; y: number } | null>(null);
-  const pendingDirectionRef = useRef<Direction | null>(null);
-  const selectedDirectionRef = useRef<Direction | null>(null);
+  const callbacksRef = useRef({ onTopicSelect });
+  const smoothedPointsRef = useRef<Record<SelectedNode, ScreenPoint | null>>({
+    center: DEFAULT_TOPIC_POSITIONS.center,
+    up: DEFAULT_TOPIC_POSITIONS.up,
+    right: DEFAULT_TOPIC_POSITIONS.right,
+    down: DEFAULT_TOPIC_POSITIONS.down,
+    left: DEFAULT_TOPIC_POSITIONS.left,
+  });
+  const pendingTopicRef = useRef<SelectedNode | null>(null);
   const stableFramesRef = useRef(0);
   const cooldownUntilRef = useRef(0);
   const lastSeenRef = useRef(0);
-  const [controllerState, setControllerState] = useState<GestureControllerState>({
-    status: "Camera idle",
-    detail: "Open a topic map to start camera-based gesture navigation.",
-    gesturePhase: "idle",
-    activeDirection: null,
-  });
+  const [topicPositions, setTopicPositions] = useState<TopicPositions>(DEFAULT_TOPIC_POSITIONS);
 
-  callbacksRef.current = { onJoinStart, onDirectionHighlight, onDirectionOpen };
+  callbacksRef.current = { onTopicSelect };
 
   useEffect(() => {
     if (!enabled) {
-      setControllerState({
-        status: "Camera idle",
-        detail: "Open a topic map to start camera-based gesture navigation.",
-        gesturePhase: "idle",
-        activeDirection: null,
-      });
+      setTopicPositions(DEFAULT_TOPIC_POSITIONS);
+      smoothedPointsRef.current = {
+        center: DEFAULT_TOPIC_POSITIONS.center,
+        up: DEFAULT_TOPIC_POSITIONS.up,
+        right: DEFAULT_TOPIC_POSITIONS.right,
+        down: DEFAULT_TOPIC_POSITIONS.down,
+        left: DEFAULT_TOPIC_POSITIONS.left,
+      };
       return undefined;
     }
 
@@ -81,30 +92,27 @@ export function useGestureController({
     let stream: MediaStream | null = null;
     let handLandmarker: HandLandmarker | null = null;
 
-    const setViewState = (nextState: Partial<GestureControllerState>) => {
-      setControllerState((previousState) => {
-        const mergedState = { ...previousState, ...nextState };
-        if (
-          previousState.status === mergedState.status &&
-          previousState.detail === mergedState.detail &&
-          previousState.gesturePhase === mergedState.gesturePhase &&
-          previousState.activeDirection === mergedState.activeDirection
-        ) {
-          return previousState;
-        }
-
-        return mergedState;
-      });
+    const updateTopicPositions = (nextPositions: TopicPositions) => {
+      setTopicPositions((previousPositions) =>
+        positionsChanged(previousPositions, nextPositions) ? nextPositions : previousPositions,
+      );
     };
 
-    const resetGestureRuntime = () => {
-      phaseRef.current = "idle";
-      joinOriginRef.current = null;
-      smoothedCentroidRef.current = null;
-      pendingDirectionRef.current = null;
-      selectedDirectionRef.current = null;
+    const resetSelectionTracking = () => {
+      pendingTopicRef.current = null;
       stableFramesRef.current = 0;
-      setViewState({ gesturePhase: "idle", activeDirection: null });
+    };
+
+    const resetToDefaultLayout = () => {
+      smoothedPointsRef.current = {
+        center: DEFAULT_TOPIC_POSITIONS.center,
+        up: DEFAULT_TOPIC_POSITIONS.up,
+        right: DEFAULT_TOPIC_POSITIONS.right,
+        down: DEFAULT_TOPIC_POSITIONS.down,
+        left: DEFAULT_TOPIC_POSITIONS.left,
+      };
+      resetSelectionTracking();
+      updateTopicPositions(DEFAULT_TOPIC_POSITIONS);
     };
 
     const stopStream = () => {
@@ -118,17 +126,6 @@ export function useGestureController({
       }
     };
 
-    const handleMissingHand = (time: number) => {
-      if (phaseRef.current === "opened" || phaseRef.current === "cooldown") {
-        return;
-      }
-
-      if (time - lastSeenRef.current > 180) {
-        resetGestureRuntime();
-        setViewState({ status: READY_STATUS, detail: READY_DETAIL });
-      }
-    };
-
     const processFrame = () => {
       if (cancelled) {
         return;
@@ -136,26 +133,6 @@ export function useGestureController({
 
       const video = videoRef.current;
       const now = performance.now();
-
-      if (phaseRef.current === "opened") {
-        phaseRef.current = "cooldown";
-        setViewState({
-          status: "Selection cooldown",
-          detail: "Content is locked briefly to keep the UI stable.",
-          gesturePhase: "cooldown",
-        });
-        animationFrame = window.requestAnimationFrame(processFrame);
-        return;
-      }
-
-      if (phaseRef.current === "cooldown") {
-        if (now >= cooldownUntilRef.current) {
-          resetGestureRuntime();
-          setViewState({ status: READY_STATUS, detail: READY_DETAIL });
-        }
-        animationFrame = window.requestAnimationFrame(processFrame);
-        return;
-      }
 
       if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !handLandmarker) {
         animationFrame = window.requestAnimationFrame(processFrame);
@@ -166,122 +143,90 @@ export function useGestureController({
       const landmarks = results.landmarks[0];
 
       if (!landmarks) {
-        handleMissingHand(now);
+        if (now - lastSeenRef.current > 220) {
+          resetToDefaultLayout();
+        }
         animationFrame = window.requestAnimationFrame(processFrame);
         return;
       }
 
       lastSeenRef.current = now;
 
-      const thumbTip = { x: landmarks[4].x, y: landmarks[4].y };
-      const indexTip = { x: landmarks[8].x, y: landmarks[8].y };
-      const middleTip = { x: landmarks[12].x, y: landmarks[12].y };
-      const ringTip = { x: landmarks[16].x, y: landmarks[16].y };
-      const pinkyTip = { x: landmarks[20].x, y: landmarks[20].y };
-      const wrist = { x: landmarks[0].x, y: landmarks[0].y };
-      const indexMcp = { x: landmarks[5].x, y: landmarks[5].y };
-      const middleMcp = { x: landmarks[9].x, y: landmarks[9].y };
+      const thumbTip = clampPoint(mirrorPoint({ x: landmarks[4].x, y: landmarks[4].y }));
+      const indexTip = clampPoint(mirrorPoint({ x: landmarks[8].x, y: landmarks[8].y }));
+      const middleTip = clampPoint(mirrorPoint({ x: landmarks[12].x, y: landmarks[12].y }));
+      const ringTip = clampPoint(mirrorPoint({ x: landmarks[16].x, y: landmarks[16].y }));
+      const pinkyTip = clampPoint(mirrorPoint({ x: landmarks[20].x, y: landmarks[20].y }));
 
-      const handSize = (distance(wrist, indexMcp) + distance(wrist, middleMcp)) / 2;
+      const nextPositions: TopicPositions = {
+        left: smoothTrackedPoint(smoothedPointsRef.current, "left", thumbTip),
+        up: smoothTrackedPoint(smoothedPointsRef.current, "up", indexTip),
+        center: smoothTrackedPoint(smoothedPointsRef.current, "center", middleTip),
+        down: smoothTrackedPoint(smoothedPointsRef.current, "down", ringTip),
+        right: smoothTrackedPoint(smoothedPointsRef.current, "right", pinkyTip),
+      };
+      updateTopicPositions(nextPositions);
+
+      const mirroredWrist = mirrorPoint({ x: landmarks[0].x, y: landmarks[0].y });
+      const mirroredIndexMcp = mirrorPoint({ x: landmarks[5].x, y: landmarks[5].y });
+      const mirroredPinkyMcp = mirrorPoint({ x: landmarks[17].x, y: landmarks[17].y });
+      const handSize = (distance(mirroredWrist, mirroredIndexMcp) + distance(mirroredWrist, mirroredPinkyMcp)) / 2;
       const thresholds = createThresholds(handSize);
-      const isolationThreshold = Math.max(handSize * 0.33, 0.06);
-      const pairCentroid = centroid([indexTip, middleTip]);
-      const smoothedCentroid = smoothPoint(smoothedCentroidRef.current, pairCentroid);
-      smoothedCentroidRef.current = smoothedCentroid;
+      const bendThreshold = Math.max(0.2, thresholds.fingerBendRatio);
 
-      const pairDistance = distance(indexTip, middleTip);
-      const thumbDistance = distance(thumbTip, pairCentroid);
-      const ringDistance = distance(ringTip, pairCentroid);
-      const pinkyDistance = distance(pinkyTip, pairCentroid);
-      const joinedThreshold = phaseRef.current === "idle" ? thresholds.joinEnter : thresholds.joinExit;
-      const fingersAreIsolated =
-        thumbDistance > isolationThreshold &&
-        ringDistance > isolationThreshold &&
-        pinkyDistance > isolationThreshold;
-      const isJoined = pairDistance < joinedThreshold && fingersAreIsolated;
-      const isOpen = pairDistance > thresholds.open;
+      const bendMap: Record<SelectedNode, number> = {
+        left: calculateFingerBendRatio([
+          mirrorPoint({ x: landmarks[2].x, y: landmarks[2].y }),
+          mirrorPoint({ x: landmarks[3].x, y: landmarks[3].y }),
+          thumbTip,
+        ]),
+        up: calculateFingerBendRatio([
+          mirrorPoint({ x: landmarks[5].x, y: landmarks[5].y }),
+          mirrorPoint({ x: landmarks[6].x, y: landmarks[6].y }),
+          mirrorPoint({ x: landmarks[7].x, y: landmarks[7].y }),
+          indexTip,
+        ]),
+        center: calculateFingerBendRatio([
+          mirrorPoint({ x: landmarks[9].x, y: landmarks[9].y }),
+          mirrorPoint({ x: landmarks[10].x, y: landmarks[10].y }),
+          mirrorPoint({ x: landmarks[11].x, y: landmarks[11].y }),
+          middleTip,
+        ]),
+        down: calculateFingerBendRatio([
+          mirrorPoint({ x: landmarks[13].x, y: landmarks[13].y }),
+          mirrorPoint({ x: landmarks[14].x, y: landmarks[14].y }),
+          mirrorPoint({ x: landmarks[15].x, y: landmarks[15].y }),
+          ringTip,
+        ]),
+        right: calculateFingerBendRatio([
+          mirrorPoint({ x: landmarks[17].x, y: landmarks[17].y }),
+          mirrorPoint({ x: landmarks[18].x, y: landmarks[18].y }),
+          mirrorPoint({ x: landmarks[19].x, y: landmarks[19].y }),
+          pinkyTip,
+        ]),
+      };
 
-      if (phaseRef.current === "idle") {
-        if (isJoined) {
-          phaseRef.current = "joined";
-          joinOriginRef.current = smoothedCentroid;
-          callbacksRef.current.onJoinStart();
-          setViewState({
-            status: "Center locked",
-            detail: "Drag outward while keeping index and middle fingertips together.",
-            gesturePhase: "joined",
-            activeDirection: null,
-          });
+      const bentTopic = resolveDominantBentFinger(bendMap, bendThreshold);
+
+      if (!bentTopic || now < cooldownUntilRef.current) {
+        if (!bentTopic) {
+          resetSelectionTracking();
         }
-
         animationFrame = window.requestAnimationFrame(processFrame);
         return;
       }
 
-      if (!isJoined && !isOpen) {
-        resetGestureRuntime();
-        setViewState({ status: READY_STATUS, detail: READY_DETAIL });
-        animationFrame = window.requestAnimationFrame(processFrame);
-        return;
+      if (pendingTopicRef.current === bentTopic) {
+        stableFramesRef.current += 1;
+      } else {
+        pendingTopicRef.current = bentTopic;
+        stableFramesRef.current = 1;
       }
 
-      if (joinOriginRef.current) {
-        const candidateDirection = resolveDirection(
-          smoothedCentroid.x - joinOriginRef.current.x,
-          smoothedCentroid.y - joinOriginRef.current.y,
-          thresholds.drag,
-        );
-
-        if (candidateDirection) {
-          if (pendingDirectionRef.current === candidateDirection) {
-            stableFramesRef.current += 1;
-          } else {
-            pendingDirectionRef.current = candidateDirection;
-            stableFramesRef.current = 1;
-          }
-
-          if (stableFramesRef.current >= 3 && selectedDirectionRef.current !== candidateDirection) {
-            selectedDirectionRef.current = candidateDirection;
-            phaseRef.current = "dragging";
-            callbacksRef.current.onDirectionHighlight(candidateDirection);
-            setViewState({
-              status: `${candidateDirection.toUpperCase()} selected`,
-              detail: "Separate index and middle fingertips to open the topic.",
-              gesturePhase: "dragging",
-              activeDirection: candidateDirection,
-            });
-          }
-        } else {
-          pendingDirectionRef.current = null;
-          stableFramesRef.current = 0;
-          if (phaseRef.current !== "joined") {
-            phaseRef.current = "joined";
-            setViewState({
-              status: "Center locked",
-              detail: "Drag outward while keeping index and middle fingertips together.",
-              gesturePhase: "joined",
-              activeDirection: null,
-            });
-          }
-        }
-      }
-
-      if (selectedDirectionRef.current && isOpen) {
-        const directionToOpen = selectedDirectionRef.current;
-        callbacksRef.current.onDirectionOpen(directionToOpen);
-        phaseRef.current = "opened";
+      if (stableFramesRef.current >= 3) {
+        callbacksRef.current.onTopicSelect(bentTopic);
         cooldownUntilRef.current = now + 850;
-        joinOriginRef.current = null;
-        smoothedCentroidRef.current = null;
-        pendingDirectionRef.current = null;
-        stableFramesRef.current = 0;
-        selectedDirectionRef.current = null;
-        setViewState({
-          status: `${directionToOpen.toUpperCase()} opened`,
-          detail: "Topic content is now open.",
-          gesturePhase: "opened",
-          activeDirection: directionToOpen,
-        });
+        resetSelectionTracking();
       }
 
       animationFrame = window.requestAnimationFrame(processFrame);
@@ -289,18 +234,10 @@ export function useGestureController({
 
     const initialize = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
-        setViewState({
-          status: "Camera unavailable",
-          detail: "This browser does not support camera capture. Use mouse, buttons, or keyboard instead.",
-        });
         return;
       }
 
       try {
-        setViewState({
-          status: "Requesting camera",
-          detail: "Allow camera access to enable two-finger gesture control.",
-        });
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
@@ -323,11 +260,6 @@ export function useGestureController({
         video.srcObject = stream;
         await video.play();
 
-        setViewState({
-          status: "Loading MediaPipe",
-          detail: "Preparing the hand landmark model in your browser.",
-        });
-
         const vision = await FilesetResolver.forVisionTasks(WASM_PATH);
         handLandmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
@@ -341,31 +273,9 @@ export function useGestureController({
           return;
         }
 
-        setViewState({
-          status: READY_STATUS,
-          detail: READY_DETAIL,
-          gesturePhase: "idle",
-          activeDirection: null,
-        });
-
         animationFrame = window.requestAnimationFrame(processFrame);
       } catch (error) {
-        const video = videoRef.current;
-        const previewIsLive = Boolean(stream) && video?.srcObject === stream;
-        const errorMessage = getTrackingErrorMessage(error);
-
-        if (!previewIsLive) {
-          stopStream();
-        }
-
-        setViewState({
-          status: previewIsLive ? "Camera preview live" : "Gesture fallback active",
-          detail: previewIsLive
-            ? `${errorMessage} Gesture tracking is unavailable right now, but mouse and keyboard controls still work.`
-            : `${errorMessage} Use mouse or keyboard instead.`,
-          gesturePhase: "idle",
-          activeDirection: null,
-        });
+        console.warn(getTrackingErrorMessage(error));
       }
     };
 
@@ -385,6 +295,6 @@ export function useGestureController({
 
   return {
     videoRef,
-    ...controllerState,
+    topicPositions,
   };
 }

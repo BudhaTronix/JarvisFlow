@@ -1,36 +1,16 @@
 import type { Direction } from "./types";
 
-export type GesturePhase = "idle" | "joined" | "dragging" | "opened" | "cooldown";
-
 export interface Point {
   x: number;
   y: number;
 }
 
 export interface GestureThresholds {
-  joinEnter: number;
-  joinExit: number;
-  drag: number;
-  open: number;
+  fingerBendRatio: number;
 }
 
 export function distance(first: Point, second: Point): number {
   return Math.hypot(first.x - second.x, first.y - second.y);
-}
-
-export function centroid(points: Point[]): Point {
-  const total = points.reduce(
-    (accumulator, point) => ({
-      x: accumulator.x + point.x,
-      y: accumulator.y + point.y,
-    }),
-    { x: 0, y: 0 },
-  );
-
-  return {
-    x: total.x / points.length,
-    y: total.y / points.length,
-  };
 }
 
 export function smoothPoint(previous: Point | null, next: Point, alpha = 0.35): Point {
@@ -45,33 +25,66 @@ export function smoothPoint(previous: Point | null, next: Point, alpha = 0.35): 
 }
 
 export function createThresholds(handSize: number): GestureThresholds {
+  const normalizedHandSize = Math.max(handSize, 0.01);
   return {
-    joinEnter: Math.max(handSize * 0.16, 0.02),
-    joinExit: Math.max(handSize * 0.22, 0.03),
-    drag: Math.max(handSize * 0.35, 0.06),
-    open: Math.max(handSize * 0.3, 0.055),
+    fingerBendRatio: Math.max(0.2, normalizedHandSize * 0.32),
   };
 }
 
-export function resolveDirection(deltaX: number, deltaY: number, dragThreshold: number): Direction | null {
-  const absX = Math.abs(deltaX);
-  const absY = Math.abs(deltaY);
-
-  if (Math.max(absX, absY) < dragThreshold) {
-    return null;
+export function calculateFingerBendRatio(points: Point[]): number {
+  if (points.length < 3) {
+    return 0;
   }
 
-  if (absY > absX * 1.1) {
-    return deltaY < 0 ? "up" : "down";
+  let pathLength = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    pathLength += distance(points[index - 1], points[index]);
   }
 
-  if (absX > absY * 1.1) {
-    return deltaX < 0 ? "right" : "left";
+  if (pathLength === 0) {
+    return 0;
   }
 
-  if (absY >= absX) {
-    return deltaY < 0 ? "up" : "down";
-  }
+  const directLength = distance(points[0], points[points.length - 1]);
+  return 1 - directLength / pathLength;
+}
 
-  return deltaX < 0 ? "right" : "left";
+export function clampPoint(point: Point, paddingX = 0.1, paddingY = 0.12): Point {
+  return {
+    x: Math.min(1 - paddingX, Math.max(paddingX, point.x)),
+    y: Math.min(1 - paddingY, Math.max(paddingY, point.y)),
+  };
+}
+
+export function mirrorPoint(point: Point): Point {
+  return {
+    x: 1 - point.x,
+    y: point.y,
+  };
+}
+
+export function isSignificantlyBent(bendRatio: number, threshold: number): boolean {
+  return bendRatio >= threshold;
+}
+
+export function resolveDominantBentFinger<T extends string>(
+  bendMap: Record<T, number>,
+  threshold: number,
+): T | null {
+  let selectedKey: T | null = null;
+  let selectedBend = threshold;
+
+  (Object.keys(bendMap) as T[]).forEach((key) => {
+    const bendRatio = bendMap[key];
+    if (bendRatio > selectedBend) {
+      selectedBend = bendRatio;
+      selectedKey = key;
+    }
+  });
+
+  return selectedKey;
+}
+
+export function directionToTopicFinger(direction: Direction): Direction {
+  return direction;
 }

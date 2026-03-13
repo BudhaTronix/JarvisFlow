@@ -14,4 +14,11 @@ export interface BrainstormResponse {
 
 export type SelectedNode = "center" | Direction;
 
+export interface ScreenPoint {
+  x: number;
+  y: number;
+}
+
+export type TopicPositions = Record<SelectedNode, ScreenPoint>;
+
 export const directionOrder: Direction[] = ["up", "right", "down", "left"];

@@ -1,6 +1,6 @@
 # JARVIS Flow
 
-JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend and a TypeScript frontend. It starts from a root topic, renders a centered cross-shaped mind map, and lets you explore the four branches with MediaPipe hand tracking, mouse clicks, or keyboard shortcuts.
+JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend and a TypeScript frontend. It starts from a root topic, renders a black-background floating topic field, and lets you explore the five phase-1 topics with MediaPipe hand tracking, mouse clicks, or keyboard shortcuts.
 
 ## What phase 1 does
 
@@ -8,7 +8,8 @@ JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend 
 - Sends the submitted text to a Python API.
 - Uses a static Biology dataset when the submitted value is blank.
 - Uses a placeholder 5-node structure when the submitted value is non-blank.
-- Renders one center topic and four directional topics only: up, right, down, and left.
+- Keeps the floating topic field centered on the page.
+- Attaches each topic to a fingertip when a hand is visible.
 - Opens topic meaning cards in a centered modal after a gesture selection or with mouse/keyboard fallback controls.
 - Runs MediaPipe hand landmark detection in the browser, not on the backend.
 
@@ -55,18 +56,24 @@ The frontend uses MediaPipe Hand Landmarker in single-hand mode.
 
 Phase-1 gesture flow:
 
-1. Keep only index and middle fingertips together.
-2. Keep thumb, ring finger, and pinky away from that two-finger cluster.
-3. Once the two-finger join is detected, the center topic becomes active.
-4. Drag mostly up, down, left, or right to highlight one of the four branches.
-5. Separate index and middle fingertips to open the selected topic.
+1. The visible topic field stays centered on the page.
+2. When a hand appears, each topic floats with one fingertip.
+3. Topic-to-finger mapping:
+   - Thumb: left topic
+   - Index: up topic
+   - Middle: center/root topic
+   - Ring: down topic
+   - Pinky: right topic
+4. Bend one finger so its curl changes by more than about 20%.
+5. The strongest bent finger is treated as the selected topic and opens that topic card.
 6. A short cooldown prevents immediate retriggers.
 
 Notes:
 
-- Left and right gesture mapping is inverted relative to the original implementation.
-- The camera feed is hidden from the UI, but the browser still uses it behind the scenes for gesture detection.
-- Thresholds are normalized using hand size so the interaction is less sensitive to distance from the camera.
+- The visible background stays black.
+- The camera feed stays hidden, but the browser still uses it for gesture detection.
+- The floating positions mirror the hand horizontally so movement feels natural on screen.
+- If no hand is visible, the topics fall back to a centered default layout.
 - The MediaPipe WASM runtime is served locally from `frontend/public/mediapipe/wasm` so it matches the installed package version.
 - By default the hand landmark model is loaded from Google's hosted MediaPipe model URL. If that URL is blocked on your network, set `VITE_HAND_LANDMARKER_MODEL_URL` to your own hosted copy.
 
@@ -75,7 +82,7 @@ Notes:
 You can use the app without gestures.
 
 - Click the center node to open the root topic.
-- Click a directional node to open that topic.
+- Click a floating topic to open that topic.
 - Keyboard shortcuts:
   - `ArrowUp`, `ArrowRight`, `ArrowDown`, `ArrowLeft`: highlight a branch
   - `Home`: focus the center node

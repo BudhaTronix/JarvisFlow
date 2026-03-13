@@ -15,18 +15,18 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selectCenter = () => {
-    setSelectedNode("center");
-    setOpenTopic(null);
-  };
-
-  const openCenter = () => {
+  const openTopicByKey = (topic: SelectedNode) => {
     if (!graph) {
       return;
     }
 
+    setSelectedNode(topic);
+    setOpenTopic(topic === "center" ? graph.root : graph.directions[topic]);
+  };
+
+  const selectCenter = () => {
     setSelectedNode("center");
-    setOpenTopic(graph.root);
+    setOpenTopic(null);
   };
 
   const highlightDirection = (direction: Direction) => {
@@ -34,33 +34,21 @@ export default function App() {
     setOpenTopic(null);
   };
 
-  const openDirection = (direction: Direction) => {
-    if (!graph) {
-      return;
-    }
+  const openCenter = () => {
+    openTopicByKey("center");
+  };
 
-    setSelectedNode(direction);
-    setOpenTopic(graph.directions[direction]);
+  const openDirection = (direction: Direction) => {
+    openTopicByKey(direction);
   };
 
   const openSelected = () => {
-    if (!graph) {
-      return;
-    }
-
-    if (selectedNode === "center") {
-      openCenter();
-      return;
-    }
-
-    openDirection(selectedNode);
+    openTopicByKey(selectedNode);
   };
 
-  const { videoRef } = useGestureController({
+  const { videoRef, topicPositions } = useGestureController({
     enabled: Boolean(graph),
-    onJoinStart: selectCenter,
-    onDirectionHighlight: highlightDirection,
-    onDirectionOpen: openDirection,
+    onTopicSelect: openTopicByKey,
   });
 
   useKeyboardNavigation({
@@ -117,6 +105,7 @@ export default function App() {
       selectedNode={selectedNode}
       openTopic={openTopic}
       videoRef={videoRef}
+      topicPositions={topicPositions}
       onBack={handleBack}
       onOpenCenter={openCenter}
       onOpenDirection={openDirection}

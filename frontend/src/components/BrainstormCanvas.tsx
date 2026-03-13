@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 
-import type { BrainstormResponse, Direction, SelectedNode, TopicNodeData } from "../lib/types";
+import type { BrainstormResponse, SelectedNode, TopicNodeData, TopicPositions } from "../lib/types";
 import { ContentPanel } from "./ContentPanel";
 import { TopicNode } from "./TopicNode";
 
@@ -9,9 +9,10 @@ interface BrainstormCanvasProps {
   selectedNode: SelectedNode;
   openTopic: TopicNodeData | null;
   videoRef: RefObject<HTMLVideoElement>;
+  topicPositions: TopicPositions;
   onBack: () => void;
   onOpenCenter: () => void;
-  onOpenDirection: (direction: Direction) => void;
+  onOpenDirection: (direction: "up" | "right" | "down" | "left") => void;
   onClosePanel: () => void;
 }
 
@@ -20,6 +21,7 @@ export function BrainstormCanvas({
   selectedNode,
   openTopic,
   videoRef,
+  topicPositions,
   onBack,
   onOpenCenter,
   onOpenDirection,
@@ -29,10 +31,10 @@ export function BrainstormCanvas({
     <main className="canvas-shell">
       <header className="canvas-header">
         <div>
-          <p className="eyebrow">Mind-map explorer</p>
+          <p className="eyebrow">Hand-Float Brainstorming</p>
           <h1>{graph.root.label}</h1>
           <p className="canvas-subtitle">
-            Close index and middle fingertips together, keep the thumb, ring, and pinky away, then drag outward to explore each branch.
+            Each topic follows one fingertip. Bend a finger by about 20% or more to open that topic.
           </p>
         </div>
         <div className="header-actions">
@@ -48,17 +50,10 @@ export function BrainstormCanvas({
           <video ref={videoRef} className="gesture-video-hidden" autoPlay muted playsInline aria-hidden="true" />
 
           <div className="mindmap-stage">
-            <svg className="mindmap-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M50 50 L50 17" />
-              <path d="M50 50 L84 50" />
-              <path d="M50 50 L50 83" />
-              <path d="M50 50 L16 50" />
-            </svg>
-
             <TopicNode
               label={graph.root.label}
               content={graph.root.content}
-              placement="center"
+              position={topicPositions.center}
               isRoot
               selected={selectedNode === "center"}
               onClick={onOpenCenter}
@@ -66,28 +61,28 @@ export function BrainstormCanvas({
             <TopicNode
               label={graph.directions.up.label}
               content={graph.directions.up.content}
-              placement="up"
+              position={topicPositions.up}
               selected={selectedNode === "up"}
               onClick={() => onOpenDirection("up")}
             />
             <TopicNode
               label={graph.directions.right.label}
               content={graph.directions.right.content}
-              placement="right"
+              position={topicPositions.right}
               selected={selectedNode === "right"}
               onClick={() => onOpenDirection("right")}
             />
             <TopicNode
               label={graph.directions.down.label}
               content={graph.directions.down.content}
-              placement="down"
+              position={topicPositions.down}
               selected={selectedNode === "down"}
               onClick={() => onOpenDirection("down")}
             />
             <TopicNode
               label={graph.directions.left.label}
               content={graph.directions.left.content}
-              placement="left"
+              position={topicPositions.left}
               selected={selectedNode === "left"}
               onClick={() => onOpenDirection("left")}
             />
