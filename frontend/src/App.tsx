@@ -119,7 +119,7 @@ export default function App() {
     handleStartOver();
   };
 
-  const { videoRef, gpuCanvasRef, topicPositions } = useGestureController({
+  const { videoRef, gpuCanvasRef, topicPositions, triggerTopic } = useGestureController({
     enabled: Boolean(graph),
     isTopicOpen: Boolean(openTopic),
     canMoveToNextPage,
@@ -182,6 +182,7 @@ export default function App() {
       source={graph.source}
       selectedNode={selectedNode}
       openTopic={openTopic}
+      triggerTopic={triggerTopic}
       videoRef={videoRef}
       gpuCanvasRef={gpuCanvasRef}
       topicPositions={topicPositions}

@@ -21,8 +21,9 @@ export function ContentPanel({ topic, onClose }: ContentPanelProps) {
       >
         <div className="content-panel__header">
           <div>
-            <p className="eyebrow">Topic meaning</p>
+            <p className="eyebrow">Topic signal captured</p>
             <h2>{topic.label}</h2>
+            <p className="content-panel__meta">The topic crossed the open line and expanded into focus.</p>
           </div>
           <button className="ghost-button" type="button" onClick={onClose}>
             Close

@@ -11,6 +11,11 @@ export interface GestureThresholds {
   fingerBendRatio: number;
 }
 
+export interface TriggerBandMatch<T extends string> {
+  topic: T;
+  distance: number;
+}
+
 export type SwipeDirection = "next" | "previous";
 
 export function distance(first: Point, second: Point): number {
@@ -145,8 +150,12 @@ export function separateTrackedPoints<T extends string>(
         }
 
         const useFallbackVector = actualDistance < 0.0001;
-        const directionX = useFallbackVector ? Math.cos((leftIndex + rightIndex + pass + 1) * 1.37) : deltaX / actualDistance;
-        const directionY = useFallbackVector ? Math.sin((leftIndex + rightIndex + pass + 1) * 1.37) : deltaY / actualDistance;
+        const directionX = useFallbackVector
+          ? Math.cos((leftIndex + rightIndex + pass + 1) * 1.37)
+          : deltaX / actualDistance;
+        const directionY = useFallbackVector
+          ? Math.sin((leftIndex + rightIndex + pass + 1) * 1.37)
+          : deltaY / actualDistance;
         const pushDistance = minimumDistance - (useFallbackVector ? 0 : actualDistance);
         const pushX = directionX * pushDistance;
         const pushY = directionY * pushDistance;
@@ -204,6 +213,41 @@ export function separateTrackedPoints<T extends string>(
   return nextPoints;
 }
 
+export function getClosestTopicInTriggerBand<T extends string>(
+  points: Record<T, Point>,
+  triggerLineY: number,
+  triggerBandHalfHeight: number,
+): TriggerBandMatch<T> | null {
+  let closestTopic: T | null = null;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  (Object.keys(points) as T[]).forEach((topic) => {
+    const distanceToLine = Math.abs(points[topic].y - triggerLineY);
+    if (distanceToLine <= triggerBandHalfHeight && distanceToLine < closestDistance) {
+      closestTopic = topic;
+      closestDistance = distanceToLine;
+    }
+  });
+
+  if (!closestTopic) {
+    return null;
+  }
+
+  return {
+    topic: closestTopic,
+    distance: closestDistance,
+  };
+}
+
+export function getTriggerProximity(positionY: number, triggerLineY: number, proximityRange: number): number {
+  if (proximityRange <= 0) {
+    return 0;
+  }
+
+  const distanceToLine = Math.abs(positionY - triggerLineY);
+  return Math.max(0, 1 - distanceToLine / proximityRange);
+}
+
 export function resolveSwipeDirection(
   samples: TimedPoint[],
   minimumHorizontalDistance: number,
@@ -233,17 +277,17 @@ export function resolveSwipeDirection(
   return deltaX < 0 ? "next" : "previous";
 }
 
-export function isClosedPalm(
-  tipPoints: Point[],
-  palmCenter: Point,
-  handSize: number,
-  bendRatios: number[],
-  bendThreshold: number,
-): boolean {
+export function isClosedPalm(tipPoints: Point[], palmCenter: Point, handSize: number): boolean {
   const closeThreshold = Math.max(handSize * 0.95, 0.1);
-  const tipsAreClose = tipPoints.every((point) => distance(point, palmCenter) <= closeThreshold);
-  const fingersAreBent =
-    bendRatios.slice(1).every((ratio) => ratio >= bendThreshold) &&
-    bendRatios[0] >= bendThreshold * 0.7;
-  return tipsAreClose && fingersAreBent;
+  const spreadThreshold = Math.max(handSize * 1.35, 0.16);
+  const maximumTipDistance = Math.max(...tipPoints.map((point) => distance(point, palmCenter)));
+  let maximumSpread = 0;
+
+  for (let leftIndex = 0; leftIndex < tipPoints.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < tipPoints.length; rightIndex += 1) {
+      maximumSpread = Math.max(maximumSpread, distance(tipPoints[leftIndex], tipPoints[rightIndex]));
+    }
+  }
+
+  return maximumTipDistance <= closeThreshold && maximumSpread <= spreadThreshold;
 }

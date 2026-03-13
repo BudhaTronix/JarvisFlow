@@ -1,6 +1,6 @@
 # JARVIS Flow
 
-JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend and a TypeScript frontend. It starts from a root topic, renders a black-background floating topic field, and lets you explore phase-1 topic sets with MediaPipe hand tracking, mouse clicks, or keyboard shortcuts.
+JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend and a TypeScript frontend. It starts from a root topic, renders a fullscreen cinematic topic field, and lets you explore phase-1 topic sets with MediaPipe hand tracking, mouse clicks, or keyboard shortcuts.
 
 ## What phase 1 does
 
@@ -8,10 +8,10 @@ JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend 
 - Sends the submitted text to a Python API.
 - Uses a static Biology dataset when the submitted value is blank.
 - Uses a placeholder multi-page topic structure when the submitted value is non-blank.
-- Keeps the floating topic field centered on the page.
+- Uses the full browser viewport as the mind-map stage.
 - Attaches each topic to a fingertip when a hand is visible.
 - Spreads the floating topics outward from the palm so they stay separated instead of overlapping.
-- Opens topic meaning cards in a centered modal after a gesture selection or with mouse/keyboard fallback controls.
+- Opens topic meaning cards when a floating topic enters the horizontal trigger line at 60% of the viewport height.
 - Uses the closed-palm gesture as a one-step-back action: it closes an open topic card first, and a second closed palm from the mind map returns to the start screen.
 - Lets you configure a pause after the close gesture so hand tracking waits before starting the next detection cycle.
 - Supports horizontal swipe navigation between topic sets when another set is available.
@@ -20,7 +20,7 @@ JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend 
 
 ## Project layout
 
-- `frontend/`: React + Vite + TypeScript app, MediaPipe hand tracking, paged topic navigation, UI, keyboard fallback, and gesture helpers.
+- `frontend/`: React + Vite + TypeScript app, MediaPipe hand tracking, paged topic navigation, fullscreen UI, keyboard fallback, and gesture helpers.
 - `backend/`: FastAPI app, typed response models, phase-1 topic expansion service, and backend unit tests.
 
 ## Run the backend
@@ -62,7 +62,7 @@ The frontend uses MediaPipe Hand Landmarker in single-hand mode.
 
 Phase-1 gesture flow:
 
-1. The visible topic field stays centered on the page.
+1. The brainstorming screen fills the whole viewport.
 2. When a hand appears, each topic floats with one fingertip.
 3. Topic-to-finger mapping:
    - Thumb: left topic
@@ -71,14 +71,17 @@ Phase-1 gesture flow:
    - Ring: down topic
    - Pinky: right topic
 4. The topic labels are pushed outward from the palm center so they stay readable and avoid overlapping.
-5. Bend one finger so its curl changes by more than about 20%.
-6. The strongest bent finger is treated as the selected topic and opens that topic card.
-7. Close the whole hand into a stable fist to go back one step.
-8. If a topic card is open, the fist closes the card and returns to the mind map.
-9. Sweep an open hand from right to left to move to the next topic set.
-10. Sweep an open hand from left to right to move to the previous topic set.
-11. If another topic set is not available in that direction, the swipe does nothing.
-12. After a close/back gesture, the app pauses gesture detection for the configured settle time.
+5. A luminous horizontal trigger line sits at 60% of the viewport height.
+6. When a floating topic enters the trigger band around that line and stays there briefly, that topic opens.
+7. If multiple topics touch the trigger band together, the one closest to the line center wins.
+8. A topic must leave the trigger band before it can retrigger.
+9. Close the whole hand into a stable fist to go back one step.
+10. If a topic card is open, the fist closes the card and returns to the mind map.
+11. Sweep an open hand from right to left to move to the next topic set.
+12. Sweep an open hand from left to right to move to the previous topic set.
+13. If another topic set is not available in that direction, the swipe does nothing.
+14. Swipe navigation is suppressed while a topic is open or while a topic is actively intersecting the trigger line.
+15. After a close/back gesture, the app pauses gesture detection for the configured settle time.
 
 Notes:
 

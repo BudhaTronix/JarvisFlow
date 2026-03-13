@@ -2,20 +2,24 @@ import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 
 import {
-  calculateFingerBendRatio,
   centroid,
   clampPoint,
-  createThresholds,
   distance,
+  getClosestTopicInTriggerBand,
   isClosedPalm,
   mirrorPoint,
-  resolveDominantBentFinger,
   resolveSwipeDirection,
   separateTrackedPoints,
   smoothPoint,
   spreadPointAwayFromOrigin,
 } from "../lib/gesture";
-import type { ScreenPoint, SelectedNode, TopicPositions } from "../lib/types";
+import {
+  TRIGGER_BAND_HALF_HEIGHT,
+  TRIGGER_LINE_Y,
+  type ScreenPoint,
+  type SelectedNode,
+  type TopicPositions,
+} from "../lib/types";
 
 interface GestureControllerOptions {
   enabled: boolean;
@@ -35,6 +39,9 @@ const DETECTION_INTERVAL_MS = 1000 / 12;
 const SWIPE_COOLDOWN_MS = 750;
 const SWIPE_GESTURE_PAUSE_MS = 320;
 const SWIPE_SAMPLE_WINDOW_MS = 260;
+const TRIGGER_STABLE_FRAMES = 2;
+const TRIGGER_OPEN_COOLDOWN_MS = 720;
+const TRIGGER_RELEASE_OFFSET = 0.02;
 const MODEL_ASSET_PATH = import.meta.env.VITE_HAND_LANDMARKER_MODEL_URL?.trim() || DEFAULT_MODEL_ASSET_PATH;
 const CLOSE_GESTURE_PAUSE_MS = (() => {
   const parsedValue = Number.parseInt(import.meta.env.VITE_GESTURE_CLOSE_PAUSE_MS?.trim() ?? "", 10);
@@ -42,11 +49,11 @@ const CLOSE_GESTURE_PAUSE_MS = (() => {
 })();
 const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`;
 const DEFAULT_TOPIC_POSITIONS: TopicPositions = {
-  center: { x: 0.5, y: 0.5 },
-  up: { x: 0.5, y: 0.12 },
-  right: { x: 0.88, y: 0.5 },
-  down: { x: 0.5, y: 0.88 },
-  left: { x: 0.12, y: 0.5 },
+  center: { x: 0.5, y: 0.26 },
+  up: { x: 0.5, y: 0.1 },
+  right: { x: 0.79, y: 0.38 },
+  down: { x: 0.5, y: 0.82 },
+  left: { x: 0.21, y: 0.38 },
 };
 const TOPIC_KEYS: SelectedNode[] = ["center", "up", "right", "down", "left"];
 
@@ -104,10 +111,11 @@ export function useGestureController({
     down: DEFAULT_TOPIC_POSITIONS.down,
     left: DEFAULT_TOPIC_POSITIONS.left,
   });
-  const pendingTopicRef = useRef<SelectedNode | null>(null);
-  const stableFramesRef = useRef(0);
   const closedPalmFramesRef = useRef(0);
-  const selectionCooldownUntilRef = useRef(0);
+  const triggerCandidateRef = useRef<SelectedNode | null>(null);
+  const triggerStableFramesRef = useRef(0);
+  const triggerLatchRef = useRef<SelectedNode | null>(null);
+  const openCooldownUntilRef = useRef(0);
   const closeCooldownUntilRef = useRef(0);
   const swipeCooldownUntilRef = useRef(0);
   const gesturePauseUntilRef = useRef(0);
@@ -115,6 +123,7 @@ export function useGestureController({
   const lastDetectionAtRef = useRef(0);
   const swipeSamplesRef = useRef<Array<{ x: number; y: number; timestamp: number }>>([]);
   const [topicPositions, setTopicPositions] = useState<TopicPositions>(DEFAULT_TOPIC_POSITIONS);
+  const [triggerTopic, setTriggerTopic] = useState<SelectedNode | null>(null);
 
   interactionRef.current = {
     isTopicOpen,
@@ -129,6 +138,7 @@ export function useGestureController({
   useEffect(() => {
     if (!enabled) {
       setTopicPositions(DEFAULT_TOPIC_POSITIONS);
+      setTriggerTopic(null);
       smoothedPointsRef.current = {
         center: DEFAULT_TOPIC_POSITIONS.center,
         up: DEFAULT_TOPIC_POSITIONS.up,
@@ -152,13 +162,29 @@ export function useGestureController({
       );
     };
 
-    const resetSelectionTracking = () => {
-      pendingTopicRef.current = null;
-      stableFramesRef.current = 0;
+    const updateTriggerTopic = (nextTopic: SelectedNode | null) => {
+      setTriggerTopic((previousTopic) => (previousTopic === nextTopic ? previousTopic : nextTopic));
+    };
+
+    const resetTriggerCandidate = () => {
+      triggerCandidateRef.current = null;
+      triggerStableFramesRef.current = 0;
     };
 
     const resetSwipeTracking = () => {
       swipeSamplesRef.current = [];
+    };
+
+    const releaseTriggerLatchIfNeeded = (positions: TopicPositions) => {
+      const latchedTopic = triggerLatchRef.current;
+      if (!latchedTopic) {
+        return;
+      }
+
+      const distanceToLine = Math.abs(positions[latchedTopic].y - TRIGGER_LINE_Y);
+      if (distanceToLine > TRIGGER_BAND_HALF_HEIGHT + TRIGGER_RELEASE_OFFSET) {
+        triggerLatchRef.current = null;
+      }
     };
 
     const resetToDefaultLayout = () => {
@@ -169,7 +195,8 @@ export function useGestureController({
         down: DEFAULT_TOPIC_POSITIONS.down,
         left: DEFAULT_TOPIC_POSITIONS.left,
       };
-      resetSelectionTracking();
+      updateTriggerTopic(null);
+      resetTriggerCandidate();
       resetSwipeTracking();
       closedPalmFramesRef.current = 0;
       updateTopicPositions(DEFAULT_TOPIC_POSITIONS);
@@ -209,6 +236,8 @@ export function useGestureController({
       const landmarks = results.landmarks[0];
 
       if (!landmarks) {
+        updateTriggerTopic(null);
+        resetTriggerCandidate();
         resetSwipeTracking();
         if (now - lastSeenRef.current > 260) {
           resetToDefaultLayout();
@@ -230,9 +259,10 @@ export function useGestureController({
       const ringMcp = mirrorPoint({ x: landmarks[13].x, y: landmarks[13].y });
       const pinkyMcp = mirrorPoint({ x: landmarks[17].x, y: landmarks[17].y });
       const palmCenter = centroid([wrist, indexMcp, middleMcp, ringMcp, pinkyMcp]);
+      const tipPoints = [thumbTip, indexTip, middleTip, ringTip, pinkyTip];
 
       const handSize = (distance(wrist, indexMcp) + distance(wrist, pinkyMcp)) / 2;
-      const spreadDistance = Math.max(handSize * 1.22, 0.14);
+      const spreadDistance = Math.max(handSize * 1.2, 0.14);
       const separatedPositions = separateTrackedPoints(
         {
           left: spreadPointAwayFromOrigin(thumbTip, palmCenter, spreadDistance),
@@ -241,7 +271,7 @@ export function useGestureController({
           down: spreadPointAwayFromOrigin(ringTip, palmCenter, spreadDistance),
           right: spreadPointAwayFromOrigin(pinkyTip, palmCenter, spreadDistance),
         },
-        Math.max(handSize * 1.45, 0.22),
+        Math.max(handSize * 1.42, 0.22),
         ["center"],
       );
       const nextPositions: TopicPositions = {
@@ -252,59 +282,24 @@ export function useGestureController({
         right: smoothTrackedPoint(smoothedPointsRef.current, "right", separatedPositions.right),
       };
       updateTopicPositions(nextPositions);
+      releaseTriggerLatchIfNeeded(nextPositions);
+
+      const closestInBand = getClosestTopicInTriggerBand(
+        nextPositions,
+        TRIGGER_LINE_Y,
+        TRIGGER_BAND_HALF_HEIGHT,
+      );
+      updateTriggerTopic(closestInBand?.topic ?? null);
 
       if (now < gesturePauseUntilRef.current) {
-        resetSelectionTracking();
+        resetTriggerCandidate();
         resetSwipeTracking();
         closedPalmFramesRef.current = 0;
         animationFrame = window.requestAnimationFrame(processFrame);
         return;
       }
 
-      const thresholds = createThresholds(handSize);
-      const bendThreshold = Math.max(0.2, thresholds.fingerBendRatio);
-
-      const bendMap: Record<SelectedNode, number> = {
-        left: calculateFingerBendRatio([
-          mirrorPoint({ x: landmarks[2].x, y: landmarks[2].y }),
-          mirrorPoint({ x: landmarks[3].x, y: landmarks[3].y }),
-          thumbTip,
-        ]),
-        up: calculateFingerBendRatio([
-          indexMcp,
-          mirrorPoint({ x: landmarks[6].x, y: landmarks[6].y }),
-          mirrorPoint({ x: landmarks[7].x, y: landmarks[7].y }),
-          indexTip,
-        ]),
-        center: calculateFingerBendRatio([
-          middleMcp,
-          mirrorPoint({ x: landmarks[10].x, y: landmarks[10].y }),
-          mirrorPoint({ x: landmarks[11].x, y: landmarks[11].y }),
-          middleTip,
-        ]),
-        down: calculateFingerBendRatio([
-          ringMcp,
-          mirrorPoint({ x: landmarks[14].x, y: landmarks[14].y }),
-          mirrorPoint({ x: landmarks[15].x, y: landmarks[15].y }),
-          ringTip,
-        ]),
-        right: calculateFingerBendRatio([
-          pinkyMcp,
-          mirrorPoint({ x: landmarks[18].x, y: landmarks[18].y }),
-          mirrorPoint({ x: landmarks[19].x, y: landmarks[19].y }),
-          pinkyTip,
-        ]),
-      };
-      const bendValues = [bendMap.left, bendMap.up, bendMap.center, bendMap.down, bendMap.right];
-      const averageBend = bendValues.reduce((sum, value) => sum + value, 0) / bendValues.length;
-      const closedPalmDetected = isClosedPalm(
-        [thumbTip, indexTip, middleTip, ringTip, pinkyTip],
-        palmCenter,
-        handSize,
-        bendValues,
-        bendThreshold,
-      );
-
+      const closedPalmDetected = isClosedPalm(tipPoints, palmCenter, handSize);
       if (closedPalmDetected) {
         closedPalmFramesRef.current += 1;
       } else {
@@ -315,10 +310,10 @@ export function useGestureController({
       if (closedPalmFramesRef.current >= requiredCloseFrames && now >= closeCooldownUntilRef.current) {
         const pauseUntil = now + CLOSE_GESTURE_PAUSE_MS;
         closeCooldownUntilRef.current = pauseUntil;
-        selectionCooldownUntilRef.current = pauseUntil;
+        openCooldownUntilRef.current = pauseUntil;
         swipeCooldownUntilRef.current = pauseUntil;
         gesturePauseUntilRef.current = pauseUntil;
-        resetSelectionTracking();
+        resetTriggerCandidate();
         resetSwipeTracking();
         closedPalmFramesRef.current = 0;
         interactionRef.current.onClosedPalm();
@@ -326,17 +321,50 @@ export function useGestureController({
         return;
       }
 
+      const swipeIsAvailable = interactionRef.current.canMoveToNextPage || interactionRef.current.canMoveToPreviousPage;
+      const averageTipDistance = tipPoints.reduce((sum, point) => sum + distance(point, palmCenter), 0) / tipPoints.length;
+      const thumbToPinkyDistance = distance(thumbTip, pinkyTip);
+      const handIsOpenForSwipe =
+        !closedPalmDetected &&
+        averageTipDistance >= Math.max(handSize * 1.02, 0.12) &&
+        thumbToPinkyDistance >= Math.max(handSize * 1.35, 0.18);
+
       if (interactionRef.current.isTopicOpen) {
-        resetSelectionTracking();
+        resetTriggerCandidate();
         resetSwipeTracking();
         animationFrame = window.requestAnimationFrame(processFrame);
         return;
       }
 
-      const handIsOpenForSwipe = !closedPalmDetected && averageBend <= bendThreshold * 0.62;
-      const swipeIsAvailable = interactionRef.current.canMoveToNextPage || interactionRef.current.canMoveToPreviousPage;
+      if (closestInBand && now >= openCooldownUntilRef.current && closestInBand.topic !== triggerLatchRef.current) {
+        if (triggerCandidateRef.current === closestInBand.topic) {
+          triggerStableFramesRef.current += 1;
+        } else {
+          triggerCandidateRef.current = closestInBand.topic;
+          triggerStableFramesRef.current = 1;
+        }
 
-      if (handIsOpenForSwipe && swipeIsAvailable) {
+        if (triggerStableFramesRef.current >= TRIGGER_STABLE_FRAMES) {
+          triggerLatchRef.current = closestInBand.topic;
+          openCooldownUntilRef.current = now + TRIGGER_OPEN_COOLDOWN_MS;
+          gesturePauseUntilRef.current = now + 180;
+          resetTriggerCandidate();
+          resetSwipeTracking();
+          interactionRef.current.onTopicSelect(closestInBand.topic);
+          animationFrame = window.requestAnimationFrame(processFrame);
+          return;
+        }
+      } else {
+        resetTriggerCandidate();
+      }
+
+      const canSwipeNow =
+        swipeIsAvailable &&
+        !closestInBand &&
+        handIsOpenForSwipe &&
+        now >= swipeCooldownUntilRef.current;
+
+      if (canSwipeNow) {
         swipeSamplesRef.current = [
           ...swipeSamplesRef.current.filter((sample) => now - sample.timestamp <= SWIPE_SAMPLE_WINDOW_MS),
           { x: palmCenter.x, y: palmCenter.y, timestamp: now },
@@ -345,11 +373,11 @@ export function useGestureController({
         resetSwipeTracking();
       }
 
-      if (handIsOpenForSwipe && swipeIsAvailable && now >= swipeCooldownUntilRef.current) {
+      if (canSwipeNow) {
         const swipeDirection = resolveSwipeDirection(
           swipeSamplesRef.current,
-          Math.max(handSize * 1.7, 0.2),
-          Math.max(handSize * 0.75, 0.12),
+          Math.max(handSize * 1.68, 0.2),
+          Math.max(handSize * 0.72, 0.12),
         );
 
         if (swipeDirection) {
@@ -358,9 +386,9 @@ export function useGestureController({
             (swipeDirection === "previous" && interactionRef.current.canMoveToPreviousPage);
 
           swipeCooldownUntilRef.current = now + SWIPE_COOLDOWN_MS;
-          selectionCooldownUntilRef.current = now + SWIPE_COOLDOWN_MS;
+          openCooldownUntilRef.current = now + SWIPE_COOLDOWN_MS;
           gesturePauseUntilRef.current = now + SWIPE_GESTURE_PAUSE_MS;
-          resetSelectionTracking();
+          resetTriggerCandidate();
           resetSwipeTracking();
 
           if (canExecuteSwipe) {
@@ -373,28 +401,6 @@ export function useGestureController({
             return;
           }
         }
-      }
-
-      const bentTopic = resolveDominantBentFinger(bendMap, bendThreshold);
-
-      if (!bentTopic || handIsOpenForSwipe || now < selectionCooldownUntilRef.current) {
-        resetSelectionTracking();
-        animationFrame = window.requestAnimationFrame(processFrame);
-        return;
-      }
-
-      if (pendingTopicRef.current === bentTopic) {
-        stableFramesRef.current += 1;
-      } else {
-        pendingTopicRef.current = bentTopic;
-        stableFramesRef.current = 1;
-      }
-
-      if (stableFramesRef.current >= 3) {
-        interactionRef.current.onTopicSelect(bentTopic);
-        selectionCooldownUntilRef.current = now + 850;
-        resetSelectionTracking();
-        resetSwipeTracking();
       }
 
       animationFrame = window.requestAnimationFrame(processFrame);
@@ -469,5 +475,6 @@ export function useGestureController({
     videoRef,
     gpuCanvasRef,
     topicPositions,
+    triggerTopic,
   };
 }

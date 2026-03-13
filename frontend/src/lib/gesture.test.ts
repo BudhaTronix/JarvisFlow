@@ -4,6 +4,8 @@ import {
   calculateFingerBendRatio,
   clampPoint,
   distance,
+  getClosestTopicInTriggerBand,
+  getTriggerProximity,
   isClosedPalm,
   resolveDominantBentFinger,
   resolveSwipeDirection,
@@ -67,6 +69,23 @@ describe("gesture helpers", () => {
     expect(distance(separatedPoints.center, separatedPoints.up)).toBeGreaterThanOrEqual(0.199);
   });
 
+  it("finds the closest topic inside the trigger band and measures line proximity", () => {
+    const closestTopic = getClosestTopicInTriggerBand(
+      {
+        center: { x: 0.5, y: 0.49 },
+        left: { x: 0.22, y: 0.64 },
+        right: { x: 0.78, y: 0.58 },
+      },
+      0.6,
+      0.05,
+    );
+
+    expect(closestTopic?.topic).toBe("right");
+    expect(closestTopic?.distance).toBeCloseTo(0.02, 6);
+    expect(getTriggerProximity(0.6, 0.6, 0.24)).toBe(1);
+    expect(getTriggerProximity(0.84, 0.6, 0.24)).toBe(0);
+  });
+
   it("detects horizontal swipes and ignores mostly vertical motion", () => {
     expect(
       resolveSwipeDirection(
@@ -115,8 +134,6 @@ describe("gesture helpers", () => {
         ],
         { x: 0.5, y: 0.5 },
         0.12,
-        [0.18, 0.24, 0.27, 0.26, 0.25],
-        0.22,
       ),
     ).toBe(true);
     expect(
@@ -130,8 +147,6 @@ describe("gesture helpers", () => {
         ],
         { x: 0.5, y: 0.5 },
         0.12,
-        [0.18, 0.24, 0.27, 0.26, 0.25],
-        0.22,
       ),
     ).toBe(false);
   });
