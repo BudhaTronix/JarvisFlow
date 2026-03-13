@@ -16,9 +16,17 @@ class DirectionalTopics(BaseModel):
     left: TopicNode
 
 
+class BrainstormPage(BaseModel):
+    id: str
+    title: str
+    root: TopicNode
+    directions: DirectionalTopics
+
+
 class BrainstormResponse(BaseModel):
     root: TopicNode
     directions: DirectionalTopics
+    pages: list[BrainstormPage] = Field(default_factory=list)
     source: Literal["static", "placeholder"]
 
 

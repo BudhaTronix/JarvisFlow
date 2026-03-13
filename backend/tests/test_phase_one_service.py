@@ -17,6 +17,9 @@ class PhaseOneTopicExpansionServiceTests(unittest.TestCase):
         self.assertEqual(response.directions.right.label, "Genetics")
         self.assertEqual(response.directions.down.label, "Ecology")
         self.assertEqual(response.directions.left.label, "Human Body")
+        self.assertEqual(len(response.pages), 3)
+        self.assertEqual(response.pages[1].title, "Systems")
+        self.assertEqual(response.pages[2].root.label, "Evolution")
 
     def test_non_blank_topic_returns_placeholder_cross(self) -> None:
         response = self.service.expand("Neural Interfaces")
@@ -28,6 +31,9 @@ class PhaseOneTopicExpansionServiceTests(unittest.TestCase):
         self.assertEqual(response.directions.down.label, "Questions")
         self.assertEqual(response.directions.left.label, "Related Topics")
         self.assertIn("Neural Interfaces", response.directions.right.content)
+        self.assertEqual(len(response.pages), 3)
+        self.assertEqual(response.pages[1].title, "Execution")
+        self.assertEqual(response.pages[2].directions.down.label, "Risks")
 
 
 if __name__ == "__main__":
