@@ -80,6 +80,18 @@ export function clampPoint(point: Point, paddingX = 0.1, paddingY = 0.12): Point
   };
 }
 
+export function clampPointToStage(
+  point: Point,
+  paddingX = 0.12,
+  paddingTop = 0.08,
+  paddingBottom = 0.04,
+): Point {
+  return {
+    x: Math.min(1 - paddingX, Math.max(paddingX, point.x)),
+    y: Math.min(1 - paddingBottom, Math.max(paddingTop, point.y)),
+  };
+}
+
 export function mirrorPoint(point: Point): Point {
   return {
     x: 1 - point.x,
@@ -111,17 +123,18 @@ export function spreadPointAwayFromOrigin(point: Point, origin: Point, extraDist
   const magnitude = Math.hypot(deltaX, deltaY);
 
   if (magnitude < 0.0001) {
-    return clampPoint({ x: point.x, y: point.y - extraDistance }, 0.14, 0.18);
+    return clampPointToStage({ x: point.x, y: point.y - extraDistance }, 0.14, 0.08, 0.04);
   }
 
   const scale = (magnitude + extraDistance) / magnitude;
-  return clampPoint(
+  return clampPointToStage(
     {
       x: origin.x + deltaX * scale,
       y: origin.y + deltaY * scale,
     },
     0.14,
-    0.18,
+    0.08,
+    0.04,
   );
 }
 
@@ -167,44 +180,48 @@ export function separateTrackedPoints<T extends string>(
         }
 
         if (firstLocked) {
-          nextPoints[secondKey] = clampPoint(
+          nextPoints[secondKey] = clampPointToStage(
             {
               x: secondPoint.x + pushX,
               y: secondPoint.y + pushY,
             },
             0.14,
-            0.18,
+            0.08,
+            0.04,
           );
           continue;
         }
 
         if (secondLocked) {
-          nextPoints[firstKey] = clampPoint(
+          nextPoints[firstKey] = clampPointToStage(
             {
               x: firstPoint.x - pushX,
               y: firstPoint.y - pushY,
             },
             0.14,
-            0.18,
+            0.08,
+            0.04,
           );
           continue;
         }
 
-        nextPoints[firstKey] = clampPoint(
+        nextPoints[firstKey] = clampPointToStage(
           {
             x: firstPoint.x - pushX / 2,
             y: firstPoint.y - pushY / 2,
           },
           0.14,
-          0.18,
+          0.08,
+          0.04,
         );
-        nextPoints[secondKey] = clampPoint(
+        nextPoints[secondKey] = clampPointToStage(
           {
             x: secondPoint.x + pushX / 2,
             y: secondPoint.y + pushY / 2,
           },
           0.14,
-          0.18,
+          0.08,
+          0.04,
         );
       }
     }

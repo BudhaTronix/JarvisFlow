@@ -485,6 +485,7 @@ button {
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 2;
+  will-change: left, top, transform;
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -551,6 +552,7 @@ button {
     rgba(9, 12, 19, 0.72);
   backdrop-filter: blur(18px);
   box-shadow: 0 22px 48px rgba(0, 0, 0, 0.34);
+  will-change: left, top, transform;
   transform: translate(-50%, -50%);
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease, opacity 180ms ease;
 }
@@ -837,3 +839,6 @@ button {
     font-size: 0.78rem;
   }
 }
+
+
+

@@ -30,6 +30,6 @@ export interface ScreenPoint {
 export type TopicPositions = Record<SelectedNode, ScreenPoint>;
 
 export const directionOrder: Direction[] = ["up", "right", "down", "left"];
-export const TRIGGER_LINE_Y = 0.6;
-export const TRIGGER_BAND_HALF_HEIGHT = 0.055;
-export const TRIGGER_PROXIMITY_RANGE = 0.24;
+export const TRIGGER_LINE_Y = 0.9;
+export const TRIGGER_BAND_HALF_HEIGHT = 0.045;
+export const TRIGGER_PROXIMITY_RANGE = 0.3;

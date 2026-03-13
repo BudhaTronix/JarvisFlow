@@ -36,6 +36,9 @@ const DEFAULT_MODEL_ASSET_PATH =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 const DEFAULT_CLOSE_GESTURE_PAUSE_MS = 1200;
 const DETECTION_INTERVAL_MS = 1000 / 12;
+const DETECTION_SMOOTHING_ALPHA = 0.32;
+const RENDER_SMOOTHING_ALPHA = 0.28;
+const RENDER_POSITION_THRESHOLD = 0.0012;
 const SWIPE_COOLDOWN_MS = 750;
 const SWIPE_GESTURE_PAUSE_MS = 320;
 const SWIPE_SAMPLE_WINDOW_MS = 260;
@@ -49,10 +52,10 @@ const CLOSE_GESTURE_PAUSE_MS = (() => {
 })();
 const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`;
 const DEFAULT_TOPIC_POSITIONS: TopicPositions = {
-  center: { x: 0.5, y: 0.26 },
+  center: { x: 0.5, y: 0.28 },
   up: { x: 0.5, y: 0.1 },
   right: { x: 0.79, y: 0.38 },
-  down: { x: 0.5, y: 0.82 },
+  down: { x: 0.5, y: 0.84 },
   left: { x: 0.21, y: 0.38 },
 };
 const TOPIC_KEYS: SelectedNode[] = ["center", "up", "right", "down", "left"];
@@ -65,11 +68,11 @@ function getTrackingErrorMessage(error: unknown): string {
   return "MediaPipe hand tracking could not be initialized.";
 }
 
-function positionsChanged(previous: TopicPositions, next: TopicPositions): boolean {
+function positionsChanged(previous: TopicPositions, next: TopicPositions, threshold = 0.004): boolean {
   return TOPIC_KEYS.some(
     (topic) =>
-      Math.abs(previous[topic].x - next[topic].x) > 0.004 ||
-      Math.abs(previous[topic].y - next[topic].y) > 0.004,
+      Math.abs(previous[topic].x - next[topic].x) > threshold ||
+      Math.abs(previous[topic].y - next[topic].y) > threshold,
   );
 }
 
@@ -78,7 +81,7 @@ function smoothTrackedPoint(
   topic: SelectedNode,
   point: ScreenPoint,
 ): ScreenPoint {
-  const nextPoint = smoothPoint(cache[topic], point, 0.38);
+  const nextPoint = smoothPoint(cache[topic], point, DETECTION_SMOOTHING_ALPHA);
   cache[topic] = nextPoint;
   return nextPoint;
 }
@@ -111,6 +114,8 @@ export function useGestureController({
     down: DEFAULT_TOPIC_POSITIONS.down,
     left: DEFAULT_TOPIC_POSITIONS.left,
   });
+  const targetPositionsRef = useRef<TopicPositions>(DEFAULT_TOPIC_POSITIONS);
+  const renderedPositionsRef = useRef<TopicPositions>(DEFAULT_TOPIC_POSITIONS);
   const closedPalmFramesRef = useRef(0);
   const triggerCandidateRef = useRef<SelectedNode | null>(null);
   const triggerStableFramesRef = useRef(0);
@@ -139,6 +144,8 @@ export function useGestureController({
     if (!enabled) {
       setTopicPositions(DEFAULT_TOPIC_POSITIONS);
       setTriggerTopic(null);
+      targetPositionsRef.current = DEFAULT_TOPIC_POSITIONS;
+      renderedPositionsRef.current = DEFAULT_TOPIC_POSITIONS;
       smoothedPointsRef.current = {
         center: DEFAULT_TOPIC_POSITIONS.center,
         up: DEFAULT_TOPIC_POSITIONS.up,
@@ -156,10 +163,32 @@ export function useGestureController({
     let stream: MediaStream | null = null;
     let handLandmarker: HandLandmarker | null = null;
 
-    const updateTopicPositions = (nextPositions: TopicPositions) => {
+    const updateRenderedPositions = (nextPositions: TopicPositions, threshold = RENDER_POSITION_THRESHOLD) => {
+      renderedPositionsRef.current = nextPositions;
       setTopicPositions((previousPositions) =>
-        positionsChanged(previousPositions, nextPositions) ? nextPositions : previousPositions,
+        positionsChanged(previousPositions, nextPositions, threshold) ? nextPositions : previousPositions,
       );
+    };
+
+    const animateDisplayedPositions = () => {
+      const renderedPositions = renderedPositionsRef.current;
+      const targetPositions = targetPositionsRef.current;
+      const nextPositions: TopicPositions = {
+        center: smoothPoint(renderedPositions.center, targetPositions.center, RENDER_SMOOTHING_ALPHA),
+        up: smoothPoint(renderedPositions.up, targetPositions.up, RENDER_SMOOTHING_ALPHA),
+        right: smoothPoint(renderedPositions.right, targetPositions.right, RENDER_SMOOTHING_ALPHA),
+        down: smoothPoint(renderedPositions.down, targetPositions.down, RENDER_SMOOTHING_ALPHA),
+        left: smoothPoint(renderedPositions.left, targetPositions.left, RENDER_SMOOTHING_ALPHA),
+      };
+
+      if (positionsChanged(renderedPositions, nextPositions, RENDER_POSITION_THRESHOLD)) {
+        updateRenderedPositions(nextPositions);
+        return;
+      }
+
+      if (positionsChanged(renderedPositions, targetPositions, RENDER_POSITION_THRESHOLD)) {
+        updateRenderedPositions(targetPositions);
+      }
     };
 
     const updateTriggerTopic = (nextTopic: SelectedNode | null) => {
@@ -188,6 +217,7 @@ export function useGestureController({
     };
 
     const resetToDefaultLayout = () => {
+      targetPositionsRef.current = DEFAULT_TOPIC_POSITIONS;
       smoothedPointsRef.current = {
         center: DEFAULT_TOPIC_POSITIONS.center,
         up: DEFAULT_TOPIC_POSITIONS.up,
@@ -199,7 +229,6 @@ export function useGestureController({
       resetTriggerCandidate();
       resetSwipeTracking();
       closedPalmFramesRef.current = 0;
-      updateTopicPositions(DEFAULT_TOPIC_POSITIONS);
     };
 
     const stopStream = () => {
@@ -220,6 +249,8 @@ export function useGestureController({
 
       const video = videoRef.current;
       const now = performance.now();
+
+      animateDisplayedPositions();
 
       if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !handLandmarker) {
         animationFrame = window.requestAnimationFrame(processFrame);
@@ -281,7 +312,7 @@ export function useGestureController({
         down: smoothTrackedPoint(smoothedPointsRef.current, "down", separatedPositions.down),
         right: smoothTrackedPoint(smoothedPointsRef.current, "right", separatedPositions.right),
       };
-      updateTopicPositions(nextPositions);
+      targetPositionsRef.current = nextPositions;
       releaseTriggerLatchIfNeeded(nextPositions);
 
       const closestInBand = getClosestTopicInTriggerBand(
@@ -416,8 +447,8 @@ export function useGestureController({
           audio: false,
           video: {
             facingMode: "user",
-            width: { ideal: 640 },
-            height: { ideal: 480 },
+            width: { ideal: 512 },
+            height: { ideal: 384 },
           },
         });
 
