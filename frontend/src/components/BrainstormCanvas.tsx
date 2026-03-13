@@ -114,7 +114,7 @@ export function BrainstormCanvas({
       </header>
 
       <div className="canvas-hud canvas-hud--bottom">
-        <span className="hint-pill">Swipe horizontally to change topic sets</span>
+        <span className="hint-pill">Move a wide-open hand edge to edge to change sets</span>
         <span className="hint-pill">Fist gesture steps back one layer</span>
       </div>
 
@@ -218,3 +218,4 @@ export function BrainstormCanvas({
     </main>
   );
 }
+

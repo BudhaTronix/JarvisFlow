@@ -17,6 +17,11 @@ export interface TriggerBandMatch<T extends string> {
 }
 
 export type SwipeDirection = "next" | "previous";
+export type SwipeEdge = "left" | "right";
+
+export interface EdgeSwipeStart extends TimedPoint {
+  edge: SwipeEdge;
+}
 
 export function distance(first: Point, second: Point): number {
   return Math.hypot(first.x - second.x, first.y - second.y);
@@ -265,33 +270,61 @@ export function getTriggerProximity(positionY: number, triggerLineY: number, pro
   return Math.max(0, 1 - distanceToLine / proximityRange);
 }
 
-export function resolveSwipeDirection(
-  samples: TimedPoint[],
-  minimumHorizontalDistance: number,
+export function getHorizontalEdge(
+  x: number,
+  leftEdgeThreshold: number,
+  rightEdgeThreshold: number,
+): SwipeEdge | null {
+  if (x <= leftEdgeThreshold) {
+    return "left";
+  }
+
+  if (x >= rightEdgeThreshold) {
+    return "right";
+  }
+
+  return null;
+}
+
+export function resolveEdgeSwipeDirection(
+  start: EdgeSwipeStart,
+  current: TimedPoint,
+  leftEdgeThreshold: number,
+  rightEdgeThreshold: number,
   maximumVerticalTravel: number,
 ): SwipeDirection | null {
-  if (samples.length < 2) {
+  if (Math.abs(current.y - start.y) > maximumVerticalTravel) {
     return null;
   }
 
-  const firstSample = samples[0];
-  const lastSample = samples[samples.length - 1];
-  const deltaX = lastSample.x - firstSample.x;
-  const deltaY = lastSample.y - firstSample.y;
-
-  if (Math.abs(deltaX) < minimumHorizontalDistance) {
-    return null;
+  if (start.edge === "left" && current.x >= rightEdgeThreshold) {
+    return "next";
   }
 
-  if (Math.abs(deltaY) > maximumVerticalTravel) {
-    return null;
+  if (start.edge === "right" && current.x <= leftEdgeThreshold) {
+    return "previous";
   }
 
-  if (Math.abs(deltaX) < Math.abs(deltaY) * 1.8) {
-    return null;
+  return null;
+}
+
+export function isWideOpenHand(tipPoints: Point[], palmCenter: Point, handSize: number): boolean {
+  const tipDistances = tipPoints.map((point) => distance(point, palmCenter));
+  const averageTipDistance = tipDistances.reduce((sum, value) => sum + value, 0) / tipDistances.length;
+  const minimumTipDistance = Math.min(...tipDistances);
+  let maximumSpread = 0;
+
+  for (let leftIndex = 0; leftIndex < tipPoints.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < tipPoints.length; rightIndex += 1) {
+      maximumSpread = Math.max(maximumSpread, distance(tipPoints[leftIndex], tipPoints[rightIndex]));
+    }
   }
 
-  return deltaX < 0 ? "next" : "previous";
+  return (
+    averageTipDistance >= Math.max(handSize * 1.08, 0.13) &&
+    minimumTipDistance >= Math.max(handSize * 0.72, 0.095) &&
+    maximumSpread >= Math.max(handSize * 2.2, 0.24)
+  );
 }
 
 export function isClosedPalm(tipPoints: Point[], palmCenter: Point, handSize: number): boolean {

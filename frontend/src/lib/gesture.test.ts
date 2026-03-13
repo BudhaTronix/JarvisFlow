@@ -5,10 +5,12 @@ import {
   clampPoint,
   distance,
   getClosestTopicInTriggerBand,
+  getHorizontalEdge,
   getTriggerProximity,
   isClosedPalm,
+  isWideOpenHand,
   resolveDominantBentFinger,
-  resolveSwipeDirection,
+  resolveEdgeSwipeDirection,
   separateTrackedPoints,
   smoothPoint,
   spreadPointAwayFromOrigin,
@@ -86,40 +88,67 @@ describe("gesture helpers", () => {
     expect(getTriggerProximity(0.84, 0.6, 0.24)).toBe(0);
   });
 
-  it("detects horizontal swipes and ignores mostly vertical motion", () => {
+  it("recognizes wide-open edge-to-edge swipes with the requested direction mapping", () => {
+    expect(getHorizontalEdge(0.1, 0.18, 0.82)).toBe("left");
+    expect(getHorizontalEdge(0.9, 0.18, 0.82)).toBe("right");
+    expect(getHorizontalEdge(0.5, 0.18, 0.82)).toBeNull();
+
     expect(
-      resolveSwipeDirection(
-        [
-          { x: 0.72, y: 0.42, timestamp: 0 },
-          { x: 0.52, y: 0.44, timestamp: 80 },
-          { x: 0.32, y: 0.45, timestamp: 150 },
-        ],
-        0.2,
+      resolveEdgeSwipeDirection(
+        { x: 0.12, y: 0.45, timestamp: 0, edge: "left" },
+        { x: 0.88, y: 0.47, timestamp: 280 },
+        0.18,
+        0.82,
         0.12,
       ),
     ).toBe("next");
     expect(
-      resolveSwipeDirection(
-        [
-          { x: 0.24, y: 0.46, timestamp: 0 },
-          { x: 0.45, y: 0.44, timestamp: 90 },
-          { x: 0.68, y: 0.43, timestamp: 160 },
-        ],
-        0.2,
+      resolveEdgeSwipeDirection(
+        { x: 0.88, y: 0.45, timestamp: 0, edge: "right" },
+        { x: 0.12, y: 0.47, timestamp: 280 },
+        0.18,
+        0.82,
         0.12,
       ),
     ).toBe("previous");
     expect(
-      resolveSwipeDirection(
-        [
-          { x: 0.52, y: 0.2, timestamp: 0 },
-          { x: 0.55, y: 0.42, timestamp: 100 },
-          { x: 0.58, y: 0.66, timestamp: 200 },
-        ],
-        0.2,
+      resolveEdgeSwipeDirection(
+        { x: 0.12, y: 0.45, timestamp: 0, edge: "left" },
+        { x: 0.88, y: 0.7, timestamp: 280 },
+        0.18,
+        0.82,
         0.12,
       ),
     ).toBeNull();
+  });
+
+  it("distinguishes a wide-open hand from a collapsed hand", () => {
+    expect(
+      isWideOpenHand(
+        [
+          { x: 0.22, y: 0.18 },
+          { x: 0.32, y: 0.12 },
+          { x: 0.5, y: 0.1 },
+          { x: 0.66, y: 0.2 },
+          { x: 0.78, y: 0.28 },
+        ],
+        { x: 0.5, y: 0.5 },
+        0.12,
+      ),
+    ).toBe(true);
+    expect(
+      isWideOpenHand(
+        [
+          { x: 0.52, y: 0.48 },
+          { x: 0.53, y: 0.49 },
+          { x: 0.51, y: 0.5 },
+          { x: 0.5, y: 0.51 },
+          { x: 0.49, y: 0.5 },
+        ],
+        { x: 0.5, y: 0.5 },
+        0.12,
+      ),
+    ).toBe(false);
   });
 
   it("recognizes a closed palm only when all fingertips collapse inward", () => {

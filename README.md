@@ -14,7 +14,7 @@ JARVIS Flow is a gesture-controlled brainstorming app with a Python API backend 
 - Opens topic meaning cards when a floating topic enters the horizontal trigger line at 90% of the viewport height.
 - Uses the closed-palm gesture as a one-step-back action: it closes an open topic card first, and a second closed palm from the mind map returns to the start screen.
 - Lets you configure a pause after the close gesture so hand tracking waits before starting the next detection cycle.
-- Supports horizontal swipe navigation between topic sets when another set is available.
+- Supports wide-open edge-to-edge hand swipes between topic sets when another set is available.
 - Runs browser-side hand tracking with the MediaPipe GPU delegate when a compatible WebGL path is available, otherwise it falls back to CPU.
 - Throttles hand-landmark detection and interpolates node motion between detections to reduce visible stutter.
 
@@ -77,8 +77,8 @@ Phase-1 gesture flow:
 8. A topic must leave the trigger band before it can retrigger.
 9. Close the whole hand into a stable fist to go back one step.
 10. If a topic card is open, the fist closes the card and returns to the mind map.
-11. Sweep an open hand from right to left to move to the next topic set.
-12. Sweep an open hand from left to right to move to the previous topic set.
+11. Start with a wide-open hand near the left edge and move it to the right edge to load the next topic set.
+12. Start with a wide-open hand near the right edge and move it to the left edge to load the previous topic set.
 13. If another topic set is not available in that direction, the swipe does nothing.
 14. Swipe navigation is suppressed while a topic is open or while a topic is actively intersecting the trigger line.
 15. After a close/back gesture, the app pauses gesture detection for the configured settle time.
@@ -139,6 +139,8 @@ To add OpenAI later:
 1. Create a new service implementation that matches the `expand(topic)` contract.
 2. Replace the phase-1 service returned by `get_topic_expansion_service()`.
 3. Use `OPENAI_API_KEY` and `OPENAI_MODEL` from the backend environment when you wire the real expansion logic.
+
+
 
 
 

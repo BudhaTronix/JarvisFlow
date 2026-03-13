@@ -6,12 +6,15 @@ import {
   clampPoint,
   distance,
   getClosestTopicInTriggerBand,
+  getHorizontalEdge,
   isClosedPalm,
+  isWideOpenHand,
   mirrorPoint,
-  resolveSwipeDirection,
+  resolveEdgeSwipeDirection,
   separateTrackedPoints,
   smoothPoint,
   spreadPointAwayFromOrigin,
+  type EdgeSwipeStart,
 } from "../lib/gesture";
 import {
   TRIGGER_BAND_HALF_HEIGHT,
@@ -40,8 +43,10 @@ const DETECTION_SMOOTHING_ALPHA = 0.32;
 const RENDER_SMOOTHING_ALPHA = 0.28;
 const RENDER_POSITION_THRESHOLD = 0.0012;
 const SWIPE_COOLDOWN_MS = 750;
+const SWIPE_EDGE_LEFT_THRESHOLD = 0.18;
+const SWIPE_EDGE_RIGHT_THRESHOLD = 0.82;
+const SWIPE_EDGE_MAX_DURATION_MS = 1400;
 const SWIPE_GESTURE_PAUSE_MS = 320;
-const SWIPE_SAMPLE_WINDOW_MS = 260;
 const TRIGGER_STABLE_FRAMES = 2;
 const TRIGGER_OPEN_COOLDOWN_MS = 720;
 const TRIGGER_RELEASE_OFFSET = 0.02;
@@ -116,6 +121,7 @@ export function useGestureController({
   });
   const targetPositionsRef = useRef<TopicPositions>(DEFAULT_TOPIC_POSITIONS);
   const renderedPositionsRef = useRef<TopicPositions>(DEFAULT_TOPIC_POSITIONS);
+  const swipeStartRef = useRef<EdgeSwipeStart | null>(null);
   const closedPalmFramesRef = useRef(0);
   const triggerCandidateRef = useRef<SelectedNode | null>(null);
   const triggerStableFramesRef = useRef(0);
@@ -126,7 +132,6 @@ export function useGestureController({
   const gesturePauseUntilRef = useRef(0);
   const lastSeenRef = useRef(0);
   const lastDetectionAtRef = useRef(0);
-  const swipeSamplesRef = useRef<Array<{ x: number; y: number; timestamp: number }>>([]);
   const [topicPositions, setTopicPositions] = useState<TopicPositions>(DEFAULT_TOPIC_POSITIONS);
   const [triggerTopic, setTriggerTopic] = useState<SelectedNode | null>(null);
 
@@ -146,6 +151,7 @@ export function useGestureController({
       setTriggerTopic(null);
       targetPositionsRef.current = DEFAULT_TOPIC_POSITIONS;
       renderedPositionsRef.current = DEFAULT_TOPIC_POSITIONS;
+      swipeStartRef.current = null;
       smoothedPointsRef.current = {
         center: DEFAULT_TOPIC_POSITIONS.center,
         up: DEFAULT_TOPIC_POSITIONS.up,
@@ -153,7 +159,6 @@ export function useGestureController({
         down: DEFAULT_TOPIC_POSITIONS.down,
         left: DEFAULT_TOPIC_POSITIONS.left,
       };
-      swipeSamplesRef.current = [];
       lastDetectionAtRef.current = 0;
       return undefined;
     }
@@ -201,7 +206,7 @@ export function useGestureController({
     };
 
     const resetSwipeTracking = () => {
-      swipeSamplesRef.current = [];
+      swipeStartRef.current = null;
     };
 
     const releaseTriggerLatchIfNeeded = (positions: TopicPositions) => {
@@ -353,12 +358,7 @@ export function useGestureController({
       }
 
       const swipeIsAvailable = interactionRef.current.canMoveToNextPage || interactionRef.current.canMoveToPreviousPage;
-      const averageTipDistance = tipPoints.reduce((sum, point) => sum + distance(point, palmCenter), 0) / tipPoints.length;
-      const thumbToPinkyDistance = distance(thumbTip, pinkyTip);
-      const handIsOpenForSwipe =
-        !closedPalmDetected &&
-        averageTipDistance >= Math.max(handSize * 1.02, 0.12) &&
-        thumbToPinkyDistance >= Math.max(handSize * 1.35, 0.18);
+      const handIsWideOpenForSwipe = isWideOpenHand(tipPoints, palmCenter, handSize);
 
       if (interactionRef.current.isTopicOpen) {
         resetTriggerCandidate();
@@ -392,46 +392,81 @@ export function useGestureController({
       const canSwipeNow =
         swipeIsAvailable &&
         !closestInBand &&
-        handIsOpenForSwipe &&
+        handIsWideOpenForSwipe &&
         now >= swipeCooldownUntilRef.current;
 
       if (canSwipeNow) {
-        swipeSamplesRef.current = [
-          ...swipeSamplesRef.current.filter((sample) => now - sample.timestamp <= SWIPE_SAMPLE_WINDOW_MS),
-          { x: palmCenter.x, y: palmCenter.y, timestamp: now },
-        ];
-      } else {
-        resetSwipeTracking();
-      }
-
-      if (canSwipeNow) {
-        const swipeDirection = resolveSwipeDirection(
-          swipeSamplesRef.current,
-          Math.max(handSize * 1.68, 0.2),
-          Math.max(handSize * 0.72, 0.12),
+        const currentEdge = getHorizontalEdge(
+          palmCenter.x,
+          SWIPE_EDGE_LEFT_THRESHOLD,
+          SWIPE_EDGE_RIGHT_THRESHOLD,
         );
+        const swipeStart = swipeStartRef.current;
+        const maximumVerticalTravel = Math.max(handSize * 1.4, 0.2);
 
-        if (swipeDirection) {
-          const canExecuteSwipe =
-            (swipeDirection === "next" && interactionRef.current.canMoveToNextPage) ||
-            (swipeDirection === "previous" && interactionRef.current.canMoveToPreviousPage);
+        if (!swipeStart) {
+          if (currentEdge) {
+            swipeStartRef.current = {
+              x: palmCenter.x,
+              y: palmCenter.y,
+              timestamp: now,
+              edge: currentEdge,
+            };
+          }
+        } else if (currentEdge === swipeStart.edge) {
+          swipeStartRef.current = {
+            x: palmCenter.x,
+            y: palmCenter.y,
+            timestamp: now,
+            edge: currentEdge,
+          };
+        } else {
+          const verticalDrift = Math.abs(palmCenter.y - swipeStart.y);
+          const swipeTimedOut = now - swipeStart.timestamp > SWIPE_EDGE_MAX_DURATION_MS;
 
-          swipeCooldownUntilRef.current = now + SWIPE_COOLDOWN_MS;
-          openCooldownUntilRef.current = now + SWIPE_COOLDOWN_MS;
-          gesturePauseUntilRef.current = now + SWIPE_GESTURE_PAUSE_MS;
-          resetTriggerCandidate();
-          resetSwipeTracking();
+          if (swipeTimedOut || verticalDrift > maximumVerticalTravel * 1.5) {
+            swipeStartRef.current = currentEdge
+              ? {
+                  x: palmCenter.x,
+                  y: palmCenter.y,
+                  timestamp: now,
+                  edge: currentEdge,
+                }
+              : null;
+          } else {
+            const swipeDirection = resolveEdgeSwipeDirection(
+              swipeStart,
+              { x: palmCenter.x, y: palmCenter.y, timestamp: now },
+              SWIPE_EDGE_LEFT_THRESHOLD,
+              SWIPE_EDGE_RIGHT_THRESHOLD,
+              maximumVerticalTravel,
+            );
 
-          if (canExecuteSwipe) {
-            if (swipeDirection === "next") {
-              interactionRef.current.onSwipeNextPage();
-            } else {
-              interactionRef.current.onSwipePreviousPage();
+            if (swipeDirection) {
+              const canExecuteSwipe =
+                (swipeDirection === "next" && interactionRef.current.canMoveToNextPage) ||
+                (swipeDirection === "previous" && interactionRef.current.canMoveToPreviousPage);
+
+              swipeCooldownUntilRef.current = now + SWIPE_COOLDOWN_MS;
+              openCooldownUntilRef.current = now + SWIPE_COOLDOWN_MS;
+              gesturePauseUntilRef.current = now + SWIPE_GESTURE_PAUSE_MS;
+              resetTriggerCandidate();
+              resetSwipeTracking();
+
+              if (canExecuteSwipe) {
+                if (swipeDirection === "next") {
+                  interactionRef.current.onSwipeNextPage();
+                } else {
+                  interactionRef.current.onSwipePreviousPage();
+                }
+                animationFrame = window.requestAnimationFrame(processFrame);
+                return;
+              }
             }
-            animationFrame = window.requestAnimationFrame(processFrame);
-            return;
           }
         }
+      } else {
+        resetSwipeTracking();
       }
 
       animationFrame = window.requestAnimationFrame(processFrame);
