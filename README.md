@@ -85,9 +85,9 @@ Phase-1 gesture flow:
 
 Notes:
 
-- The visible background stays black.
-- The camera feed stays hidden, but the browser still uses it for gesture detection.
-- The floating positions mirror the hand horizontally so movement feels natural on screen.
+- The live camera feed fills the brainstorm screen as the background once camera permission is granted.
+- The transition line, topic nodes, trails, and panels render as overlays above the camera feed.
+- The camera feed and floating positions mirror the hand horizontally so movement feels natural on screen.
 - If no hand is visible, the topics fall back to a centered default layout.
 - The MediaPipe WASM runtime is served locally from `frontend/public/mediapipe/wasm` so it matches the installed package version.
 - By default the hand landmark model is loaded from Google's hosted MediaPipe model URL. If that URL is blocked on your network, set `VITE_HAND_LANDMARKER_MODEL_URL` to your own hosted copy.

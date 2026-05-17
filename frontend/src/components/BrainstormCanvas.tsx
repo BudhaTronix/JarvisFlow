@@ -79,9 +79,10 @@ export function BrainstormCanvas({
 
   return (
     <main className="canvas-shell canvas-shell--immersive">
-      <video ref={videoRef} className="gesture-video-hidden" autoPlay muted playsInline aria-hidden="true" />
+      <video ref={videoRef} className="gesture-video-background" autoPlay muted playsInline aria-hidden="true" />
       <canvas ref={gpuCanvasRef} className="gesture-canvas-hidden" aria-hidden="true" />
 
+      <div className="camera-scrim" aria-hidden="true" />
       <div className="canvas-glow canvas-glow--one" aria-hidden="true" />
       <div className="canvas-glow canvas-glow--two" aria-hidden="true" />
       <div className="canvas-grain" aria-hidden="true" />
